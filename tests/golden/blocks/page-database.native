@@ -1,0 +1,1 @@
+[ Div ( "" , [ "page" ] , [ ( "url" , "https://notion.so/p" ) ] ) [ Plain [ Str "Child" , Space , Str "page" , Space , Str "title" ] ] , Div ( "" , [ "database" ] , [ ( "url" , "https://notion.so/d" ) , ( "inline" , "true" ) ] ) [ Plain [ Str "Database" , Space , Str "name" ] ] ]

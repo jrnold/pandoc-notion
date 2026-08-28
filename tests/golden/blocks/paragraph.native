@@ -1,0 +1,1 @@
+[ Para [ Str "Plain" , Space , Str "paragraph" , Space , Str "text." ] , Div ( "" , [] , [ ( "color" , "blue" ) ] ) [ Para [ Str "Colored" , Space , Str "paragraph." ] ] ]

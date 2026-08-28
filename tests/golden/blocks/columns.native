@@ -1,0 +1,1 @@
+[ Div ( "" , [ "columns" ] , [] ) [ Div ( "" , [ "column" ] , [] ) [ Para [ Str "Left" , Space , Str "column" , Space , Str "text." ] ] , Div ( "" , [ "column" ] , [] ) [ Para [ Str "Right" , Space , Str "column" , Space , Str "text." ] ] ] ]

@@ -1,0 +1,5 @@
+[ Figure ( "" , [ "audio" ] , [] ) (Caption Nothing [ Plain [ Str "Audio" , Space , Str "caption" ] ]) [ Plain [ Link ( "" , [] , [] ) [ Str "Audio" , Space , Str "caption" ] ( "https://example.com/a.mp3" , "" ) ] ]
+, Figure ( "" , [ "video" ] , [] ) (Caption Nothing [ Plain [ Str "Video" , Space , Str "caption" ] ]) [ Plain [ Link ( "" , [] , [] ) [ Str "Video" , Space , Str "caption" ] ( "https://example.com/v.mp4" , "" ) ] ]
+, Figure ( "" , [ "file" ] , [] ) (Caption Nothing [ Plain [ Str "File" , Space , Str "caption" ] ]) [ Plain [ Link ( "" , [] , [] ) [ Str "File" , Space , Str "caption" ] ( "https://example.com/f.zip" , "" ) ] ]
+, Figure ( "" , [ "pdf" ] , [] ) (Caption Nothing [ Plain [ Str "PDF" , Space , Str "caption" ] ]) [ Plain [ Link ( "" , [] , [] ) [ Str "PDF" , Space , Str "caption" ] ( "https://example.com/d.pdf" , "" ) ] ]
+]

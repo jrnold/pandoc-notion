@@ -1,0 +1,1 @@
+[ Para [ Strong [ Str "Bold" ] , Space , Str "and" , Space , Emph [ Str "italic" ] , Space , Str "and" , Space , Strikeout [ Str "struck" ] , Space , Str "and" , Space , Code ( "" , [] , [] ) "code" , Str "." ] ]

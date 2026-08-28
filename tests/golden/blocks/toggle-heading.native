@@ -1,0 +1,1 @@
+[ Div ( "" , [ "toggle-heading" ] , [] ) [ Header 1 ( "" , [] , [ ( "toggle" , "true" ) ] ) [ Str "Toggle" , Space , Str "heading" ] , Para [ Str "Child" , Space , Str "of" , Space , Str "the" , Space , Str "toggle" , Space , Str "heading." ] ] ]

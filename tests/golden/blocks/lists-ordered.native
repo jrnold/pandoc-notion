@@ -1,0 +1,1 @@
+[ OrderedList ( 1 , DefaultStyle , DefaultDelim ) [ [ Plain [ Str "First" , Space , Str "item" ] ] , [ Plain [ Str "Second" , Space , Str "item" ] ] ] ]

@@ -1,0 +1,1 @@
+[ Para [ Str "Before" , Space , Str "the" , Space , Str "gap." ] , Div ( "" , [ "empty-block" ] , [] ) [] , Para [ Str "After" , Space , Str "the" , Space , Str "gap." ] ]

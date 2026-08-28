@@ -1,0 +1,1 @@
+[ Div ( "" , [ "columns" ] , [] ) [ Div ( "" , [ "column" ] , [] ) [ Div ( "" , [ "callout" ] , [ ( "icon" , "X" ) , ( "color" , "green_bg" ) ] ) [ Para [ Str "Nested" , Space , Str "callout." ] ] ] ] ]

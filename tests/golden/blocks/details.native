@@ -1,0 +1,1 @@
+[ Div ( "" , [ "toggle" ] , [ ( "color" , "blue" ) ] ) [ Div ( "" , [ "summary" ] , [] ) [ Para [ Str "Toggle" , Space , Str "title" ] ] , Para [ Str "Body" , Space , Str "of" , Space , Str "the" , Space , Str "toggle." ] ] ]

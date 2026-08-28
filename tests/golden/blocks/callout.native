@@ -1,0 +1,1 @@
+[ Div ( "" , [ "callout" ] , [ ( "icon" , "\127919" ) , ( "color" , "blue_bg" ) ] ) [ Para [ Str "Ship" , Space , Str "the" , Space , Str "MVP" , Space , Str "by" , Space , Strong [ Str "Friday" ] , Str "." ] ] ]

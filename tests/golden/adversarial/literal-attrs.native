@@ -1,0 +1,1 @@
+[ Para [ Str "See" , Space , Str "the" , Space , Str "{color}" , Space , Str "field" , Space , Str "in" , Space , Str "the" , Space , Str "docs." ] , Para [ Str "This" , Space , Str "mentions" , Space , Str "{not" , Space , Str "an" , Space , Str "attr}" , Space , Str "in" , Space , Str "passing." ] ]

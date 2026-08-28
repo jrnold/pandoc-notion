@@ -22,6 +22,7 @@ local suites = {
   "normalization_test",
   "completeness_test",
   "degrade_test",
+  "golden_test",
 }
 
 for _, s in ipairs(suites) do require(s) end

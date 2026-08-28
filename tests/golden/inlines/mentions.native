@@ -1,0 +1,8 @@
+[ Para [ Span ( "" , [ "mention" , "mention-user" ] , [ ( "url" , "https://notion.so/u" ) ] ) [ Str "Ada" ] ]
+, Para [ Span ( "" , [ "mention" , "mention-page" ] , [ ( "url" , "https://notion.so/p" ) ] ) [ Str "Page" ] ]
+, Para [ Span ( "" , [ "mention" , "mention-database" ] , [ ( "url" , "https://notion.so/d" ) ] ) [ Str "Database" ] ]
+, Para [ Span ( "" , [ "mention" , "mention-data-source" ] , [ ( "url" , "https://notion.so/ds" ) ] ) [ Str "Source" ] ]
+, Para [ Span ( "" , [ "mention" , "mention-agent" ] , [ ( "url" , "https://notion.so/a" ) ] ) [ Str "Agent" ] ]
+, Para [ Span ( "" , [ "mention" , "mention-date" ] , [ ( "start" , "2026-01-01" ) ] ) [] ]
+, Para [ Span ( "" , [ "mention" , "mention-date" ] , [ ( "start" , "2026-01-01" ) , ( "end" , "2026-01-05" ) , ( "startTime" , "09:00" ) , ( "timeZone" , "America/New_York" ) ] ) [] ]
+]

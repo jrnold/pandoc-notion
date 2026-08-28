@@ -1,0 +1,1 @@
+[ BulletList [ [ Plain [ Str "\9744" , Space , Str "Unchecked" , Space , Str "item" ] ] , [ Plain [ Str "\9746" , Space , Str "Checked" , Space , Str "item" ] ] ] ]
