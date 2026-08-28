@@ -7,6 +7,7 @@ local suites = {
   "unit.escape_test",
   "unit.attr_test",
   "unit.schema_test",
+  "unit.tree_classify_test",
 }
 
 for _, s in ipairs(suites) do require(s) end
