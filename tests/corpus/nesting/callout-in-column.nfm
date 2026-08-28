@@ -1,0 +1,7 @@
+<columns>
+	<column>
+		<callout icon="X" color="green_bg">
+			Nested callout.
+		</callout>
+	</column>
+</columns>

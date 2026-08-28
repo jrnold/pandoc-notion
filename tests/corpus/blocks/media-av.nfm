@@ -1,0 +1,4 @@
+<audio src="https://example.com/a.mp3">Audio caption</audio>
+<video src="https://example.com/v.mp4">Video caption</video>
+<file src="https://example.com/f.zip">File caption</file>
+<pdf src="https://example.com/d.pdf">PDF caption</pdf>

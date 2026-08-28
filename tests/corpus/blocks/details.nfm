@@ -1,0 +1,6 @@
+<details color="blue">
+	<summary>
+		Toggle title
+	</summary>
+	Body of the toggle.
+</details>

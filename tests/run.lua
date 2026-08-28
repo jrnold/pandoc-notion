@@ -15,6 +15,8 @@ local suites = {
   "unit.reader_entry_test",
   "unit.writer_inlines_test",
   "unit.writer_blocks_test",
+  "roundtrip_test",
+  "tab_in_fence_test",
 }
 
 for _, s in ipairs(suites) do require(s) end

@@ -1,0 +1,6 @@
+<mention-user url="https://notion.so/u">Ada</mention-user>
+<mention-page url="https://notion.so/p">Page</mention-page>
+<mention-database url="https://notion.so/d">Database</mention-database>
+<mention-data-source url="https://notion.so/ds">Source</mention-data-source>
+<mention-agent url="https://notion.so/a">Agent</mention-agent>
+<mention-date start="2026-01-01"/>
