@@ -13,6 +13,7 @@ local suites = {
   "unit.reader_inlines_test",
   "unit.reader_blocks_test",
   "unit.writer_inlines_test",
+  "unit.writer_blocks_test",
 }
 
 for _, s in ipairs(suites) do require(s) end
