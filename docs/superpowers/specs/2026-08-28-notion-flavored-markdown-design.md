@@ -136,8 +136,14 @@ By contrast, the inline layer delegates cleanly:
 - `pandoc.layout.nest(doc, 1)` indents with **one space, not a tab**. Because
   NFM's nesting is tab-defined, layout-based indentation cannot express it.
   This is why the writer does not use scaffolding (Section 7).
-- `pandoc.Block` and `pandoc.Inline` are **not enumerable** as tables of
-  constructors, so completeness must be asserted against a hardcoded list.
+- `pandoc.Block` and `pandoc.Inline` themselves are **not enumerable** (each
+  is a 1-key table). Their `.constructor` sub-tables ARE enumerable, though:
+  `pandoc.Block.constructor` has 14 keys and `pandoc.Inline.constructor` has
+  20, matching the pinned lists in `tests/completeness_test.lua` exactly.
+  The completeness test therefore enumerates `.constructor` live as its
+  primary check, and cross-checks a pinned list against that live
+  enumeration in both directions, so a version bump that changes the
+  constructor set fails loudly instead of silently under-checking.
 
 ### 2.8 Test harness
 
@@ -502,11 +508,18 @@ single-newline block separation, attribute peeling.
 
 ### 9.2 Round-trip idempotence
 
-For every fixture, assert `nfm → AST → nfm` is byte-identical. This is the
-strongest single test for a format pair, and it is self-checking: it needs no
-hand-written expected output, so adding a fixture costs one file. It catches
-the reader and writer drifting apart even when neither is obviously wrong on
-its own.
+The primary gate is **stability**: `nfm → AST → nfm` applied twice must
+produce the same output the second time as the first (`f(f(x)) == f(x)`).
+The user has explicitly waived byte-for-byte compatibility as a hard
+requirement — official fixtures transcribed verbatim from Notion's docs are
+not ours to reformat, so only stability is asserted for them
+(`tests/roundtrip_test.lua`, `official` section). Byte-identity on the first
+pass is an **additional**, stronger check that holds for the authored
+corpus (fixtures written in canonical form), with a small pinned exception
+list (`KNOWN_NOT_BYTE_IDENTICAL`) for cases with a documented reason not to
+be. This is still self-checking: it needs no hand-written expected output,
+so adding a fixture costs one file, and it catches the reader and writer
+drifting apart even when neither is obviously wrong on its own.
 
 ### 9.3 AST goldens
 
@@ -517,8 +530,9 @@ refactor cannot silently rename a class and still pass.
 ### 9.4 Completeness
 
 A hardcoded list of pandoc's `Block` and `Inline` constructors, asserted
-present in both writer dispatch tables. The list is explicit because the
-constructors are not enumerable at runtime (§2.7), and is pinned to the
+present in both writer dispatch tables. The live `.constructor` tables (§2.7)
+are the primary, self-maintaining check; the hardcoded list is cross-checked
+against that live enumeration in both directions and is pinned to the
 pandoc version in §2.
 
 ### 9.5 Degradation
@@ -587,8 +601,13 @@ honest — it is precisely how `<unknown>` and `<meeting-notes>` were found.
 
 ## 11. Success criteria
 
-1. Every fixture in `tests/corpus/` round-trips byte-identically.
-2. Every example from both Notion documentation pages parses and round-trips.
+1. Every fixture in `tests/corpus/` round-trips stably (`f(f(x)) == f(x)`);
+   the authored corpus additionally round-trips byte-identically on the
+   first pass, with a small pinned exception list for documented cases that
+   don't (byte-identity is a strong additional check, not the gate — the
+   user has waived it as a hard requirement, see §9.2).
+2. Every example from both Notion documentation pages parses and round-trips
+   stably.
 3. Every row of §4.3 and §4.4 has a passing golden test.
 4. Every pandoc `Block` and `Inline` constructor is handled by the writer.
 5. Every §8 fallback produces its documented output, with `[INFO]` emitted on

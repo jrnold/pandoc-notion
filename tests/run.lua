@@ -16,6 +16,7 @@ local suites = {
   "unit.writer_inlines_test",
   "unit.writer_blocks_test",
   "roundtrip_test",
+  "crossformat_test",
   "tab_in_fence_test",
   "colgroup_test",
   "normalization_test",

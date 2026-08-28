@@ -46,3 +46,19 @@ for name in pairs(KNOWN_NOT_BYTE_IDENTICAL) do
 end
 
 t.eq(count, 41, "corpus has exactly 41 fixtures, found " .. count)
+
+-- Official fixtures are transcribed verbatim from Notion's documentation, so
+-- their formatting is not ours to control. Assert STABILITY (f(f(x)) == f(x))
+-- rather than byte-identity: the first pass may normalize, but no pass after
+-- it may change anything.
+local official = 0
+for _, path in ipairs(nfm.list("official")) do
+  official = official + 1
+  local name  = path:match("[^/]+$")
+  local src   = nfm.read_file(path):gsub("\n$", "")
+  local once  = nfm.to_nfm(src):gsub("\n$", "")
+  local twice = nfm.to_nfm(once):gsub("\n$", "")
+  t.eq(twice, once, "official fixture is stable: " .. name)
+  t.truthy(#once > 0, "official fixture produces output: " .. name)
+end
+t.truthy(official >= 4, "all four official fixtures present, found " .. official)
