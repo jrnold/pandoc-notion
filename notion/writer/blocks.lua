@@ -4,7 +4,9 @@ local attr   = require "notion.attr"
 
 local M = {}
 
-local render      -- forward declaration
+local render_inner   -- forward declaration; the pure recursive dispatcher.
+                      -- Does NOT walk for notes -- that happens exactly once,
+                      -- in render_with_notes below, before any dispatch.
 
 local function tabs(n) return string.rep("\t", n) end
 
@@ -31,16 +33,32 @@ local function tag_attrs_of(attributes)
   return tag_attrs(a, order)
 end
 
--- Render a tag block: <tag k="v">\n\t<children>\n</tag>
--- Source order wins; def.attrs only supplies an order for documents that did
--- not come from NFM in the first place.
+-- The tag name a raw HTML fragment opens, closes, or self-closes as -- used
+-- only to decide whether it is in NFM's closed vocabulary, per raw_tag in
+-- reader/inlines.lua.
+local function html_tag_name(text)
+  return text:match("^</([%w_%-]+)>%s*$") or text:match("^<([%w_%-]+)[%s/>]")
+end
+
+-- Render a tag block. Two shapes, matching what reader/tree.lua's tag_kind
+-- can actually parse back:
+--   - a schema.CONTAINERS tag (callout, details, …): <tag k="v">\n\t…\n</tag>
+--   - anything else (page, database): only ever built by the reader as
+--     tag_inline, so it must round-trip as one line, <tag k="v">…</tag>.
+--     tag_kind only opens a multi-line container for CONTAINERS tags; writing
+--     the container form for, say, <page>, produces a tag_open the reader can
+--     never close, corrupting the very next read.
 local function tag_block(tag, def, el, depth)
   local a, order = attr.from_attr(el.attributes)
   if #order == 0 then order = def.attrs end
   local body = tag_attrs(a, order)
   local open = "<" .. tag .. body
   if def.void then return tabs(depth) .. open .. "/>" end
-  local kids = render(el.content, depth + 1)
+  if not schema.CONTAINERS[tag] then
+    local inline = inl.render(pandoc.utils.blocks_to_inlines(el.content))
+    return tabs(depth) .. open .. ">" .. inline .. "</" .. tag .. ">"
+  end
+  local kids = render_inner(el.content, depth + 1)
   if kids == "" then return tabs(depth) .. open .. "></" .. tag .. ">" end
   return tabs(depth) .. open .. ">\n" .. kids .. "\n" .. tabs(depth) .. "</" .. tag .. ">"
 end
@@ -51,11 +69,11 @@ end
 -- blocks were tab-indented children of that source line one level deeper.
 local function unwrap_children(content, depth)
   if #content == 0 then return "" end
-  local head = render(pandoc.Blocks({ content[1] }), depth)
+  local head = render_inner(pandoc.Blocks({ content[1] }), depth)
   if #content == 1 then return head end
   local rest = pandoc.Blocks({})
   for i = 2, #content do rest:insert(content[i]) end
-  return head .. "\n" .. render(rest, depth + 1)
+  return head .. "\n" .. render_inner(rest, depth + 1)
 end
 
 local function div(el, depth)
@@ -80,8 +98,10 @@ local function div(el, depth)
     return tag_block(tag, schema.BLOCK_TAGS[tag], el, depth)
   end
 
-  -- unknown class: render the children, losing only the wrapper
-  return render(el.content, depth)
+  -- unknown class: not NFM's, and not produced by our own reader -- render
+  -- the children, losing only the wrapper, and log it (a genuine drop).
+  pandoc.log.info('Not rendering Div wrapper (class "' .. classes[1] .. '" is not part of NFM)')
+  return render_inner(el.content, depth)
 end
 
 -- To-do items arrive as a Plain whose text starts with U+2610/U+2612 then a
@@ -100,7 +120,7 @@ end
 local function list(el, depth, marker)
   local out = {}
   for i, item in ipairs(el.content) do
-    local body = render(pandoc.Blocks(item), depth + 1)
+    local body = render_inner(pandoc.Blocks(item), depth + 1)
     -- first line carries the marker; the rest stays tab-indented
     local first, rest = body:match("^" .. tabs(depth + 1) .. "([^\n]*)(.*)$")
     first = first or body
@@ -120,12 +140,15 @@ local handlers = {
   Plain = function(el, d) return tabs(d) .. inl.render(el.content) end,
 
   Header = function(el, d)
+    if el.level > 4 then
+      pandoc.log.info("Not rendering heading level " .. el.level .. " (NFM only has levels 1-4)")
+    end
     return tabs(d) .. string.rep("#", math.min(el.level, 4)) .. " "
            .. inl.render(el.content) .. attr_suffix(el.attributes)
   end,
 
   BlockQuote = function(el, d)
-    local body = render(el.content, 0):gsub("\n", "<br>")
+    local body = render_inner(el.content, 0):gsub("\n", "<br>")
     return tabs(d) .. "> " .. body
   end,
 
@@ -221,7 +244,7 @@ local handlers = {
     for _, entry in ipairs(el.content) do
       out[#out + 1] = tabs(d) .. "**" .. inl.render(entry[1]) .. "**"
       for _, def in ipairs(entry[2]) do
-        out[#out + 1] = render(pandoc.Blocks(def), d + 1)
+        out[#out + 1] = render_inner(pandoc.Blocks(def), d + 1)
       end
     end
     return table.concat(out, "\n")
@@ -234,49 +257,67 @@ local handlers = {
   end,
 
   RawBlock = function(el, d)
-    if el.format == "html" then return tabs(d) .. el.text end
+    if el.format == "html" then
+      local tag = html_tag_name(el.text)
+      if tag and schema.is_known_tag(tag) then return tabs(d) .. el.text end
+    end
     pandoc.log.info('Not rendering RawBlock (Format "' .. el.format .. '")')
     return ""
   end,
 }
 
--- Footnotes: NFM has none. A Note is replaced with a `[n]` marker wherever it
--- appears, and its body collected as an endnote appended after the blocks
--- that contained it. `walk` recurses through the whole given subtree (Divs,
--- lists, tables, …) in one pass, so nested `render` calls simply see an
--- already-marked, note-free tree and find nothing further to collect.
-local function extract_notes(blocks)
-  local notes, n = {}, 0
-  local marked = pandoc.Blocks(blocks):walk({
-    Note = function(el)
-      n = n + 1
-      notes[#notes + 1] = { index = n, blocks = el.content }
-      return pandoc.Str("[" .. n .. "]")
-    end,
-  })
-  return marked, notes
-end
-
-render = function(blocks, depth)
-  local marked, notes = extract_notes(blocks or {})
+render_inner = function(blocks, depth)
   local out = {}
-  for _, b in ipairs(marked) do
+  for _, b in ipairs(blocks or {}) do
     local h = handlers[b.t]
     local text
     if h then text = h(b, depth or 0)
     else text = (depth and tabs(depth) or "") .. pandoc.utils.stringify(b) end
     if text ~= "" then out[#out + 1] = text end
   end
-  for _, note in ipairs(notes) do
-    out[#out + 1] = "[" .. note.index .. "] " .. render(note.blocks, 0)
-  end
   return table.concat(out, "\n")     -- single newline between blocks
 end
 
-function M.render_document(doc)
-  return render(doc.blocks, 0)
+-- Footnotes: NFM has none. A Note is replaced with a sentinel-wrapped marker
+-- wherever it appears, and its body collected as an endnote appended after
+-- the blocks that contained it. The sentinel (private-use-area characters,
+-- never produced by any real text) survives inline rendering -- including
+-- the Str handler's escaping of `[`/`]` -- untouched, because at the point it
+-- is escaped it contains no bracket characters yet; the brackets are only
+-- substituted in afterwards, so the in-text marker and the endnote label are
+-- both literal, unescaped `[n]`, never `\[n\]`.
+local MARK_OPEN, MARK_CLOSE = "\u{E000}", "\u{E001}"
+
+local function extract_notes(blocks)
+  local notes, n = {}, 0
+  local marked = pandoc.Blocks(blocks):walk({
+    Note = function(el)
+      n = n + 1
+      notes[#notes + 1] = { index = n, blocks = el.content }
+      return pandoc.Str(MARK_OPEN .. n .. MARK_CLOSE)
+    end,
+  })
+  return marked, notes
 end
 
-M.render = render
+-- The one place `render`'s note-handling runs: `walk` above is deep, so a
+-- single call here catches every Note anywhere in `blocks`, however deeply
+-- nested inside Divs/lists/tables. Recursive rendering (render_inner) never
+-- re-walks, which is what makes this O(nodes) rather than O(depth × nodes).
+local function render_with_notes(blocks, depth)
+  local marked, notes = extract_notes(blocks or {})
+  local parts = { render_inner(marked, depth) }
+  for _, note in ipairs(notes) do
+    parts[#parts + 1] = MARK_OPEN .. note.index .. MARK_CLOSE .. " " .. render_inner(note.blocks, 0)
+  end
+  local result = table.concat(parts, "\n")
+  return (result:gsub(MARK_OPEN .. "(%d+)" .. MARK_CLOSE, "[%1]"))
+end
+
+function M.render_document(doc)
+  return render_with_notes(doc.blocks, 0)
+end
+
+M.render = render_with_notes
 M.handlers = handlers
 return M

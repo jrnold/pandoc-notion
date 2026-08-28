@@ -17,10 +17,17 @@ local SUP = { ["0"]="\226\129\176", ["1"]="\194\185",     ["2"]="\194\178",
 
 local render     -- forward declaration
 
+-- Returns the mapped text plus whether every character had a mapping. A
+-- caller-visible `false` means the styling itself had to be dropped (not
+-- merely approximated) for at least one character -- e.g. `x~abc~` has no
+-- NFM subscript equivalent for letters -- so callers log it.
 local function map_digits(text, table_)
-  local out = {}
-  for c in text:gmatch(".") do out[#out + 1] = table_[c] or c end
-  return table.concat(out)
+  local out, all_mapped = {}, true
+  for c in text:gmatch(".") do
+    if table_[c] then out[#out + 1] = table_[c]
+    else all_mapped = false; out[#out + 1] = c end
+  end
+  return table.concat(out), all_mapped
 end
 
 -- Read an Attr's key/value list into a ` k="v" …` suffix (no braces): the
@@ -29,6 +36,13 @@ local function tag_attrs(attributes, fallback_order)
   local a, order = attr.from_attr(attributes)
   if #order == 0 then order = fallback_order or {} end
   return attr.render(a, order):gsub("^ {", ""):gsub("}$", "")
+end
+
+-- The tag name a raw HTML fragment opens, closes, or self-closes as -- used
+-- only to decide whether it is in NFM's closed vocabulary, per raw_tag in
+-- reader/inlines.lua.
+local function html_tag_name(text)
+  return text:match("^</([%w_%-]+)>%s*$") or text:match("^<([%w_%-]+)[%s/>]")
 end
 
 local function span(el)
@@ -79,13 +93,31 @@ local handlers = {
                  local q = el.quotetype == "SingleQuote" and "'" or '"'
                  return q .. render(el.content) .. q
                end,
+  -- Byte-wise ASCII :upper() -- non-ASCII letters pass through unchanged
+  -- rather than uppercasing, since Lua's stdlib has no Unicode case mapping
+  -- and this project takes on no dependency to get one.
   SmallCaps  = function(el) return render(el.content):upper() end,
-  Subscript  = function(el) return map_digits(render(el.content), SUB) end,
-  Superscript= function(el) return map_digits(render(el.content), SUP) end,
+  Subscript  = function(el)
+                 local text, ok = map_digits(render(el.content), SUB)
+                 if not ok then
+                   pandoc.log.info("Not rendering Subscript (non-digit content has no NFM equivalent)")
+                 end
+                 return text
+               end,
+  Superscript= function(el)
+                 local text, ok = map_digits(render(el.content), SUP)
+                 if not ok then
+                   pandoc.log.info("Not rendering Superscript (non-digit content has no NFM equivalent)")
+                 end
+                 return text
+               end,
   Cite       = function(el) return render(el.content) end,
   Note       = function() return "" end,   -- handled by the block writer
   RawInline  = function(el)
-                 if el.format == "html" then return el.text end
+                 if el.format == "html" then
+                   local tag = html_tag_name(el.text)
+                   if tag and schema.is_known_tag(tag) then return el.text end
+                 end
                  pandoc.log.info("Not rendering RawInline (Format \"" .. el.format .. "\")")
                  return ""
                end,

@@ -58,8 +58,42 @@ t.eq(out({ pandoc.Div({}, pandoc.Attr("", { "empty-block" }, {})) }),
 t.eq(out({ pandoc.Div({}, pandoc.Attr("", { "unknown" }, { { "url", "u" }, { "alt", "bookmark" } })) }),
      '<unknown url="u" alt="bookmark"/>', "unknown block")
 
--- footnotes degrade to an endnote, not raw HTML
+-- CRITICAL: page/database are BLOCK_TAGS but NOT schema.CONTAINERS --
+-- tree.lua's tag_kind only opens a multi-line container for CONTAINERS tags,
+-- so the reader only ever builds these as tag_inline. Writing them in
+-- container form (<page>\n\t…\n</page>) produces a tag_open the reader can
+-- never close, corrupting on the very next read; they must round-trip as one
+-- line instead.
+t.eq(out({ pandoc.Div({ pandoc.Plain({ pandoc.Str("Title") }) },
+                      pandoc.Attr("", { "page" },
+                                  { { "url", "u://p" }, { "color", "blue" } })) }),
+     '<page url="u://p" color="blue">Title</page>',
+     "page tag stays on one line, not container form")
+t.eq(out({ pandoc.Div({ pandoc.Plain({ pandoc.Str("DB") }) },
+                      pandoc.Attr("", { "database" }, { { "url", "u://d" } })) }),
+     '<database url="u://d">DB</database>',
+     "database tag stays on one line, not container form")
+
+-- H5/H6 clamp to H4 (per spec); this is a genuine, logged drop of level info.
+t.eq(out({ pandoc.Header(5, { pandoc.Str("H") }) }), "#### H", "h5 clamps to h4")
+t.eq(out({ pandoc.Header(6, { pandoc.Str("H") }) }), "#### H", "h6 clamps to h4")
+
+-- a class not in NFM's vocabulary: content survives, wrapper is dropped
+-- (and logged), not left as an unrecognized Div.
+t.eq(out({ pandoc.Div({ pandoc.Para({ pandoc.Str("x") }) },
+                      pandoc.Attr("", { "foreign-class" }, {})) }),
+     "x", "unknown Div class drops the wrapper, keeps the content")
+
+-- raw HTML: pass through only when the tag is in NFM's closed vocabulary;
+-- otherwise it is dropped (logged at INFO), never left as literal text.
+t.eq(out({ pandoc.RawBlock("html", "<empty-block/>") }), "<empty-block/>",
+     "known-vocabulary RawBlock passes through")
+t.eq(out({ pandoc.RawBlock("html", "<div>x</div>") }), "",
+     "unknown RawBlock is dropped, not left as literal text")
+
+-- footnotes degrade to an endnote, not raw HTML. The in-text marker and the
+-- endnote label must render identically -- exact match, not a substring
+-- check, so an escaping mismatch between them (`\[1\]` vs `[1]`) can't hide.
 local note = out({ pandoc.Para({ pandoc.Str("x"),
   pandoc.Note({ pandoc.Para({ pandoc.Str("body") }) }) }) })
-t.truthy(note:find("[1]", 1, true) ~= nil, "footnote leaves a marker")
-t.truthy(note:find("body", 1, true) ~= nil, "and the body appears as an endnote")
+t.eq(note, "x[1]\n[1] body", "footnote marker is unescaped and matches the endnote label")

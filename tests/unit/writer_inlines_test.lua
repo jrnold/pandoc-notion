@@ -32,7 +32,9 @@ t.eq(w.render({ pandoc.Span({ pandoc.Str("Ada") },
      '<mention-user url="u://1">Ada</mention-user>', "mention")
 t.eq(w.render({ pandoc.Span({}, pandoc.Attr("", { "citation" }, { url = "http://x" })) }),
      "[^http://x]", "citation")
-t.eq(w.render({ pandoc.Span({ pandoc.Str("\128516") },
+-- "\128516" is byte \128 followed by the literal characters "516", not the
+-- emoji U+1F604 (same \ddd trap as F2: \ddd caps at \255). Use \u{...}.
+t.eq(w.render({ pandoc.Span({ pandoc.Str("\u{1F604}") },
         pandoc.Attr("", { "emoji" }, { ["data-emoji"] = "smile" })) }),
      ":smile:", "custom emoji")
 
@@ -42,3 +44,16 @@ t.eq(w.render({ pandoc.Subscript({ pandoc.Str("2") }) }), "\226\130\130",
      "subscript uses Unicode")
 t.eq(w.render({ pandoc.Superscript({ pandoc.Str("2") }) }), "\194\178",
      "superscript uses Unicode")
+-- non-digit content has no NFM subscript/superscript equivalent: dropped to
+-- plain text (and logged at INFO), not left in a raw HTML <sub>/<sup>.
+t.eq(w.render({ pandoc.Subscript({ pandoc.Str("abc") }) }), "abc",
+     "non-digit subscript degrades to plain text")
+t.eq(w.render({ pandoc.Superscript({ pandoc.Str("abc") }) }), "abc",
+     "non-digit superscript degrades to plain text")
+
+-- raw HTML: pass through only when the tag is in NFM's closed vocabulary;
+-- otherwise it is dropped (logged at INFO), never left as literal HTML.
+t.eq(w.render({ pandoc.RawInline("html", '<mention-user url="u://1">') }),
+     '<mention-user url="u://1">', "known-vocabulary raw HTML passes through")
+t.eq(w.render({ pandoc.RawInline("html", "<sub>") }), "",
+     "unknown raw HTML is dropped, not left as literal text")
