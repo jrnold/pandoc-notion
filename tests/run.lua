@@ -5,6 +5,7 @@ local t = require "support.assert"
 
 local suites = {
   "unit.escape_test",
+  "unit.attr_test",
 }
 
 for _, s in ipairs(suites) do require(s) end
