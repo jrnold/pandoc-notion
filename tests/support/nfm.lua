@@ -22,6 +22,33 @@ function M.to_nfm_preserve_tabs(text)
   return pandoc.pipe("pandoc", { "--preserve-tabs", "-f", READER, "-t", WRITER }, text)
 end
 
+-- Same as to_nfm, but also returns pandoc's log output (its stderr with
+-- --verbose, since pandoc.log.info messages are INFO-level and pandoc
+-- suppresses those by default). pandoc.pipe only returns stdout, so this
+-- shells out via temp files instead. Used only to pin that a genuinely
+-- dropped construct (e.g. colgroup color) actually logs per spec Sec 8,
+-- rather than silently disappearing.
+function M.to_nfm_with_log(text)
+  local in_path, err_path = os.tmpname(), os.tmpname()
+  local fh = assert(io.open(in_path, "wb"))
+  fh:write(text)
+  fh:close()
+
+  local cmd = "pandoc --verbose -f '" .. READER .. "' -t '" .. WRITER
+              .. "' '" .. in_path .. "' 2>'" .. err_path .. "'"
+  local p = assert(io.popen(cmd, "r"))
+  local out = p:read("a")
+  p:close()
+
+  local ef = assert(io.open(err_path, "rb"))
+  local err = ef:read("a")
+  ef:close()
+
+  os.remove(in_path)
+  os.remove(err_path)
+  return out, err
+end
+
 function M.read_file(path)
   local fh = assert(io.open(path, "rb"))
   local data = fh:read("a")

@@ -5,11 +5,16 @@ local SUBDIRS = { "blocks", "inlines", "nesting", "adversarial" }
 
 -- Fixtures with a known, pinned reason not to be byte-identical on the first
 -- pass. Each is still required to be idempotent below, and its specific
--- known behavior is asserted in its own dedicated test file.
+-- known behavior is asserted in its own dedicated test file. Guarded below
+-- so this table can never be a silent, permanent mute: a listed fixture that
+-- starts round-tripping byte-identically, or a key that no longer names a
+-- fixture on disk, fails the suite loudly instead of staying green forever.
 local KNOWN_NOT_BYTE_IDENTICAL = {
-  ["tab-in-fence.nfm"] = true,  -- see tests/tab_in_fence_test.lua
+  ["tab-in-fence.nfm"]    = true,  -- see tests/tab_in_fence_test.lua
+  ["table-colgroup.nfm"]  = true,  -- see tests/colgroup_test.lua
 }
 
+local seen_names = {}
 local count = 0
 for _, sub in ipairs(SUBDIRS) do
   for _, path in ipairs(nfm.list(sub)) do
@@ -17,10 +22,15 @@ for _, sub in ipairs(SUBDIRS) do
     local src = nfm.read_file(path):gsub("\n$", "")
     local once = nfm.to_nfm(src):gsub("\n$", "")
     local name = path:match("[^/]+$")
+    seen_names[name] = true
 
     -- Authored fixtures are written in canonical form, so the first pass must
-    -- already be byte-identical -- except the pinned exceptions above.
-    if not KNOWN_NOT_BYTE_IDENTICAL[name] then
+    -- already be byte-identical -- except the pinned exceptions above, which
+    -- must instead demonstrably NOT be byte-identical (staleness guard).
+    if KNOWN_NOT_BYTE_IDENTICAL[name] then
+      t.truthy(once ~= src, name .. " is listed in KNOWN_NOT_BYTE_IDENTICAL"
+        .. " but now round-trips byte-identically; remove the exception")
+    else
       t.eq(once, src, "round-trip is byte-identical: " .. name)
     end
 
@@ -30,4 +40,9 @@ for _, sub in ipairs(SUBDIRS) do
   end
 end
 
-t.truthy(count >= 39, "corpus has at least 39 fixtures, found " .. count)
+for name in pairs(KNOWN_NOT_BYTE_IDENTICAL) do
+  t.truthy(seen_names[name], name .. " is listed in KNOWN_NOT_BYTE_IDENTICAL"
+    .. " but no such fixture exists on disk")
+end
+
+t.eq(count, 41, "corpus has exactly 41 fixtures, found " .. count)

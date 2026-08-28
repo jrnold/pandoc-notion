@@ -1,0 +1,10 @@
+<table>
+	<colgroup>
+		<col color="blue"/>
+		<col/>
+	</colgroup>
+	<tr>
+		<td>A</td>
+		<td>B</td>
+	</tr>
+</table>

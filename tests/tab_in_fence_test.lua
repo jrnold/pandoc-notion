@@ -18,10 +18,8 @@ local path = nfm.ROOT .. "/tests/corpus/adversarial/tab-in-fence.nfm"
 local src  = nfm.read_file(path):gsub("\n$", "")
 
 local default = nfm.to_nfm(src):gsub("\n$", "")
-t.truthy(default:find("\t") == nil,
-  "without --preserve-tabs, the fence's literal tab does not survive")
-t.truthy(default:find("    command") ~= nil,
-  "without --preserve-tabs, the tab comes back as 4 spaces (pandoc's tab-stop)")
+t.eq(default, "```makefile\ntarget:\n    command\n```",
+  "without --preserve-tabs, the fence's literal tab comes back as 4 spaces (pandoc's tab-stop)")
 
 local preserved = nfm.to_nfm_preserve_tabs(src):gsub("\n$", "")
 t.eq(preserved, src, "with --preserve-tabs, the fixture round-trips byte-identically")
