@@ -108,18 +108,10 @@ do
 end
 
 -- At --tab-stop=8, 4 spaces is NOT a full indent level, so Child does not
--- nest under a Div; it stays a sibling Para. This used to come out as
--- `Para [ Code "Child" ]` instead of `Para [ Str "Child" ]` -- the 4
--- leftover spaces (< tab_stop, so never consumed as an indent level, and
--- NFM preserves unconsumed leading whitespace as literal text -- see the
--- "leading spaces are NOT indentation" case in tree_classify_test.lua)
--- used to reach inlines.read still attached to "Child", tripping pandoc's
--- own markdown_strict indented-code-block convention. notion/reader/
--- inlines.lua now trims leading whitespace before delegating to
--- pandoc.read (see commit ab38c4c, "trim leading whitespace before
--- delegating to pandoc.read"), which closed this quirk -- verified it no
--- longer reproduces. Asserting the correct positive shape now that it's
--- actually true.
+-- nest under a Div; it stays a plain sibling Para. inlines.lua trims
+-- leading whitespace before delegating to pandoc.read (commit ab38c4c), so
+-- the unconsumed 4-space run no longer trips markdown_strict's
+-- indented-code-block rule -- Child is real Str content, not a Code span.
 do
   local path = write_temp("Parent\n    Child\n")
   local ok, out = run_reader({ "--tab-stop=8", path })
