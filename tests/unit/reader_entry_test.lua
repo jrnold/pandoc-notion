@@ -108,22 +108,18 @@ do
 end
 
 -- At --tab-stop=8, 4 spaces is NOT a full indent level, so Child does not
--- nest under a Div. The previous version of this assertion only checked
--- for the absence of "Div", which also passed while the comment beside it
--- claimed the shape was `Para [ Str "Child" ]` -- it is not. The 4 leftover
--- spaces (< tab_stop, so never consumed as an indent level, and NFM
--- preserves unconsumed leading whitespace as literal text -- see the
--- "leading spaces are NOT indentation" case in tree_classify_test.lua) then
--- reach inlines.read still attached to "Child", and pandoc's own
--- markdown_strict indented-code-block convention turns a 4-space-indented
--- line into a CodeBlock, which blocks_to_inlines flattens to an inline Code
--- span. This can only surface at a non-default --tab-stop: under the
--- default of 4, split_indent always consumes every full run of spaces, so
--- a leftover run this long never happens. Documenting the actual observed
--- shape here rather than the wrong one the old comment implied; whether
--- this quirk is worth closing (it would need a change in inlines.lua,
--- outside this fix's file scope) is a separate, open question -- flagged
--- in the task report rather than fixed here.
+-- nest under a Div; it stays a sibling Para. This used to come out as
+-- `Para [ Code "Child" ]` instead of `Para [ Str "Child" ]` -- the 4
+-- leftover spaces (< tab_stop, so never consumed as an indent level, and
+-- NFM preserves unconsumed leading whitespace as literal text -- see the
+-- "leading spaces are NOT indentation" case in tree_classify_test.lua)
+-- used to reach inlines.read still attached to "Child", tripping pandoc's
+-- own markdown_strict indented-code-block convention. notion/reader/
+-- inlines.lua now trims leading whitespace before delegating to
+-- pandoc.read (see commit ab38c4c, "trim leading whitespace before
+-- delegating to pandoc.read"), which closed this quirk -- verified it no
+-- longer reproduces. Asserting the correct positive shape now that it's
+-- actually true.
 do
   local path = write_temp("Parent\n    Child\n")
   local ok, out = run_reader({ "--tab-stop=8", path })
@@ -131,7 +127,6 @@ do
   t.truthy(ok, "--tab-stop=8 with 4 spaces does not error: " .. tostring(out))
   t.truthy(ok and out:find("Div", 1, true) == nil,
            "--tab-stop=8: 4 spaces is NOT one level, so Child does not nest under a Div")
-  t.truthy(ok and out:find("Code (", 1, true) ~= nil,
-           "--tab-stop=8: the actual shape is a Code span (markdown_strict's own " ..
-           "indented-code-block rule), not the plain Str the old comment claimed")
+  t.truthy(ok and out:find('"Child"', 1, true) ~= nil and out:find("Code (", 1, true) == nil,
+           "--tab-stop=8: Child stays a real Str sibling, not a Code span")
 end
