@@ -48,6 +48,16 @@ local ts8_short = tree.classify("    Child", 8)
 t.eq(ts8_short[1].indent, 0, "4 spaces is NOT one level at tab_stop 8")
 t.eq(ts8_short[1].text, "    Child", "and stays in the text")
 
+-- a bad tab_stop (0, negative, or non-numeric) must not hang -- a run of 0
+-- spaces matches the empty string at the same position forever unless
+-- guarded -- and falls back to the default of 4 instead.
+for _, bad in ipairs({ 0, -1, "not a number" }) do
+  local r = tree.parse("Parent\n    Child", bad)
+  t.eq(#r, 1, "tab_stop=" .. tostring(bad) .. ": returns instead of hanging, one root")
+  t.eq(#r[1].children, 1, "tab_stop=" .. tostring(bad) .. ": falls back to 4, so 4 spaces still nests")
+  t.eq(r[1].children[1].text, "Child", "tab_stop=" .. tostring(bad) .. ": child text preserved")
+end
+
 -- fences: content is literal, and NFM syntax inside must not be classified
 local fenced = tree.classify("```lua\n<callout icon=\"X\">\n- a\n```")
 t.eq(kinds("```lua\n<callout icon=\"X\">\n- a\n```"),

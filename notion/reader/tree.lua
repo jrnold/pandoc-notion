@@ -67,7 +67,13 @@ local function tag_kind(body)
 end
 
 function M.classify(text, tab_stop)
-  tab_stop = tab_stop or 4
+  -- A tab_stop of 0 (or anything non-positive/non-numeric) would make
+  -- split_indent's space-run match the empty string, which matches at the
+  -- same position forever -- an infinite loop. The CLI can't reach this
+  -- (pandoc itself rejects --tab-stop=0), but tree.parse is a public
+  -- library entry point other callers -- including our own tests -- can
+  -- call directly, so it must not hang on a bad argument.
+  tab_stop = (type(tab_stop) == "number" and tab_stop > 0) and tab_stop or 4
   local out, fence = {}, nil
   for _, raw in ipairs(M.lines(text)) do
     if fence then
