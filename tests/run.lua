@@ -12,6 +12,7 @@ local suites = {
   "unit.tree_fix_test",
   "unit.reader_inlines_test",
   "unit.reader_blocks_test",
+  "unit.reader_entry_test",
   "unit.writer_inlines_test",
   "unit.writer_blocks_test",
 }
