@@ -20,10 +20,33 @@ t.eq(n[1].indent, 0, "parent at depth 0")
 t.eq(n[2].indent, 1, "child at depth 1")
 t.eq(n[2].text, "child", "indent is stripped from text")
 
--- leading spaces are NOT indentation
+-- leading spaces are NOT indentation UNLESS they run to a full tab_stop:
+-- pandoc expands tabs to tab_stop spaces before any custom Reader sees the
+-- input (unless --preserve-tabs is passed), so a run of exactly tab_stop
+-- spaces counts as one indent level, same as a literal tab. Short of that,
+-- spaces are still just text.
 local sp = tree.classify("  spaced")
-t.eq(sp[1].indent, 0, "spaces do not create depth")
+t.eq(sp[1].indent, 0, "2 spaces (< default tab_stop 4) do not create depth")
 t.eq(sp[1].text, "  spaced", "and are left in the text")
+
+local sp4 = tree.classify("    spaced")
+t.eq(sp4[1].indent, 1, "a full tab_stop's worth of spaces (4, the default) is one level")
+t.eq(sp4[1].text, "spaced", "and is stripped from the text")
+
+-- mixed leading whitespace resolves left to right, one level at a time
+local mixed = tree.classify("\t    Child")
+t.eq(mixed[1].indent, 2, "a tab plus a full tab_stop of spaces is two levels")
+t.eq(mixed[1].text, "Child", "both levels are stripped from the text")
+
+-- --tab-stop is honored: a different tab_stop changes how many spaces make
+-- one level.
+local ts8 = tree.classify("        Child", 8)
+t.eq(ts8[1].indent, 1, "8 spaces is one level at tab_stop 8")
+t.eq(ts8[1].text, "Child", "and is stripped from the text")
+
+local ts8_short = tree.classify("    Child", 8)
+t.eq(ts8_short[1].indent, 0, "4 spaces is NOT one level at tab_stop 8")
+t.eq(ts8_short[1].text, "    Child", "and stays in the text")
 
 -- fences: content is literal, and NFM syntax inside must not be classified
 local fenced = tree.classify("```lua\n<callout icon=\"X\">\n- a\n```")

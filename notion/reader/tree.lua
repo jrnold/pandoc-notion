@@ -9,10 +9,28 @@ function M.lines(text)
   return out
 end
 
--- Depth is a count of leading TABS only. Spaces are never indentation.
-local function split_indent(line)
-  local tabs = line:match("^\t*")
-  return #tabs, line:sub(#tabs + 1)
+-- Depth is a count of leading indent levels, consumed left to right so mixed
+-- leading whitespace works. One level is EITHER a literal tab OR a run of
+-- exactly `tab_stop` spaces -- pandoc expands tabs to `tab_stop` spaces
+-- before any custom Reader ever sees the input (unless --preserve-tabs is
+-- passed), so accepting that many spaces as equivalent to one tab is what
+-- keeps tab-nested documents working when read through the normal CLI path.
+-- Whatever is left after the last full level (a short run of spaces, or
+-- anything else) stays in the line's text -- it is never itself a partial
+-- indent level.
+local function split_indent(line, tab_stop)
+  local depth, i = 0, 1
+  local run = string.rep(" ", tab_stop)
+  while true do
+    if line:sub(i, i) == "\t" then
+      depth, i = depth + 1, i + 1
+    elseif line:sub(i, i + tab_stop - 1) == run then
+      depth, i = depth + 1, i + tab_stop
+    else
+      break
+    end
+  end
+  return depth, line:sub(i)
 end
 
 -- Escape a tag name for safe interpolation into a Lua pattern: '-' is a
@@ -48,12 +66,18 @@ local function tag_kind(body)
   return nil
 end
 
-function M.classify(text)
+function M.classify(text, tab_stop)
+  tab_stop = tab_stop or 4
   local out, fence = {}, nil
   for _, raw in ipairs(M.lines(text)) do
     if fence then
       -- Literal: strip only the fence's own recorded prefix, and only when
-      -- the line actually starts with it; interpret nothing else.
+      -- the line actually starts with it; interpret nothing else. Fence
+      -- BODIES never go through split_indent/tab_stop conversion -- that is
+      -- what "ensure code is preserved" means here. A fence body line like
+      -- `    return 1` must keep all four of those spaces verbatim; only the
+      -- fence's own recorded prefix (its opening line's literal leading
+      -- whitespace) is stripped, exactly as before this change.
       local after = raw
       if raw:sub(1, #fence.prefix) == fence.prefix then
         after = raw:sub(#fence.prefix + 1)
@@ -66,7 +90,7 @@ function M.classify(text)
         out[#out + 1] = { kind = "fence_body", indent = fence.indent, text = after }
       end
     else
-      local depth, body = split_indent(raw)
+      local depth, body = split_indent(raw, tab_stop)
       -- Fence and tag detection skip leading SPACES too (on top of the tabs
       -- already stripped into `depth`): nesting inside tag-balanced
       -- containers is cosmetic, so a space-indented tag or fence must still
@@ -127,8 +151,8 @@ end
 
 -- Build the tree. `stack` holds open containers; indentation nests everything
 -- else. Returns the roots.
-function M.parse(text)
-  local nodes = collapse(M.classify(text))
+function M.parse(text, tab_stop)
+  local nodes = collapse(M.classify(text, tab_stop))
   local roots = {}
   local open = {}          -- open tag containers, innermost last
 

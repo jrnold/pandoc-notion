@@ -3,10 +3,13 @@ local t = require "support.assert"
 -- pandoc expands tabs to opts.tab_stop spaces before ANY custom reader ever
 -- sees the input (unless --preserve-tabs is passed), which would otherwise
 -- silently defeat NFM's tab-only nesting model. notion-markdown-reader.lua
--- works around this by re-reading each source's raw bytes straight off
--- disk. These tests exercise the real CLI end to end -- via pandoc.pipe --
--- because the bug only manifests through pandoc's own Reader(input, opts)
--- calling convention, not through tree.parse called directly on a string.
+-- handles this by threading opts.tab_stop through to tree.parse, whose
+-- split_indent now accepts a run of exactly tab_stop spaces as equivalent to
+-- one literal tab (see tests/unit/tree_classify_test.lua and
+-- tree_nest_test.lua for the unit-level coverage of that). These tests
+-- exercise the real CLI end to end via pandoc.pipe, because the bug -- and
+-- its fix -- only manifest through pandoc's own Reader(input, opts) calling
+-- convention, not through tree.parse called directly on a string.
 
 local TOGGLE_NFM = '# Toggle {toggle="true"}\n\tChild line\n'
 
@@ -27,7 +30,7 @@ end
 
 -- A tab-nested file read through the entry point yields real nesting: the
 -- child must be a block INSIDE the toggle-heading Div, not a sibling Header
--- and not (the bug's actual failure mode) a Code span.
+-- and not (the original bug's failure mode) a Code span.
 do
   local path = write_temp(TOGGLE_NFM)
   local ok, out = run_reader({ path })
@@ -44,8 +47,9 @@ do
 end
 
 -- The same content through the reader still works when --preserve-tabs IS
--- passed -- no double-handling (e.g. re-reading a file whose tabs were
--- never expanded in the first place must not corrupt them further).
+-- passed: pandoc leaves the literal tab in place, split_indent already
+-- treats a literal tab as one level regardless of tab_stop, so the result
+-- must match exactly.
 do
   local path = write_temp(TOGGLE_NFM)
   local ok, out = run_reader({ "--preserve-tabs", path })
@@ -59,12 +63,53 @@ do
   end
 end
 
--- A source that is not a readable file (stdin has no path, so `.name` is
--- "") still parses rather than erroring -- it just falls back to whatever
--- text pandoc handed over, tabs expanded or not.
+-- Input with no backing file (stdin) still parses rather than erroring.
 do
   local ok, out = run_reader({}, TOGGLE_NFM)
-  t.truthy(ok, "an unreadable-file source (stdin) still parses: " .. tostring(out))
+  t.truthy(ok, "stdin input still parses: " .. tostring(out))
   t.truthy(ok and out:find("Header", 1, true) ~= nil,
            "stdin input still produces real pandoc output")
+end
+
+-- Code preservation, the critical case: fenced code must NOT be touched by
+-- the tab_stop->indent-level conversion, at top level and nested one level
+-- inside a container, with and without --preserve-tabs.
+local FENCE_TOP = "```python\ndef f():\n    return 1\n```\n"
+local FENCE_NESTED = '<callout icon="X">\n\t```python\n\tdef f():\n\t    return 1\n\t```\n</callout>\n'
+
+for _, case in ipairs({
+  { name = "top-level fence",         nfm = FENCE_TOP,    preserve = false },
+  { name = "top-level fence (-pt)",   nfm = FENCE_TOP,    preserve = true  },
+  { name = "callout-nested fence",    nfm = FENCE_NESTED, preserve = false },
+  { name = "callout-nested fence (-pt)", nfm = FENCE_NESTED, preserve = true },
+}) do
+  local path = write_temp(case.nfm)
+  local args = case.preserve and { "--preserve-tabs", path } or { path }
+  local ok, out = run_reader(args)
+  os.remove(path)
+  t.truthy(ok, case.name .. " does not error: " .. tostring(out))
+  if ok then
+    t.truthy(out:find('"def f():\\n    return 1"', 1, true) ~= nil,
+             case.name .. ": the 4-space Python body survives byte-for-byte")
+  end
+end
+
+-- --tab-stop is honored end to end: with --tab-stop=8, 8 spaces is one
+-- indent level and 4 spaces is not.
+do
+  local path = write_temp("Parent\n        Child\n")
+  local ok, out = run_reader({ "--tab-stop=8", path })
+  os.remove(path)
+  t.truthy(ok, "--tab-stop=8 with 8 spaces does not error: " .. tostring(out))
+  t.truthy(ok and out:find("Div", 1, true) ~= nil,
+           "--tab-stop=8: 8 spaces nests Child, producing a wrapping Div")
+end
+
+do
+  local path = write_temp("Parent\n    Child\n")
+  local ok, out = run_reader({ "--tab-stop=8", path })
+  os.remove(path)
+  t.truthy(ok, "--tab-stop=8 with 4 spaces does not error: " .. tostring(out))
+  t.truthy(ok and out:find("Div", 1, true) == nil,
+           "--tab-stop=8: 4 spaces is NOT one level, so Child stays a sibling, not nested")
 end

@@ -9,6 +9,13 @@ t.eq(#n[1].children, 1, "one child")
 t.eq(n[1].children[1].text, "child", "child text")
 t.eq(n[1].children[1].children[1].text, "grandchild", "grandchild nests")
 
+-- a 4-space-indented child nests exactly the same as a tab-indented one --
+-- this is what pandoc's own tab expansion hands the reader by default.
+local sp = tree.parse("Parent\n    Child")
+t.eq(#sp, 1, "one root")
+t.eq(#sp[1].children, 1, "spaces nest a child, same as a tab")
+t.eq(sp[1].children[1].text, "Child", "child text")
+
 -- siblings at depth 0 are separate blocks (single-newline rule)
 local sib = tree.parse("one\ntwo\nthree")
 t.eq(#sib, 3, "three sibling blocks")
