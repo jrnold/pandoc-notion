@@ -104,9 +104,14 @@ local function collapse(nodes)
         body[#body + 1] = nodes[j].text
         j = j + 1
       end
-      out[#out + 1] = { kind = "code", indent = n.indent, info = n.text,
+      -- The fence's info string is an ordinary attribute-list-bearing line
+      -- (```lua {color="blue"} ```), so peel it the same way any other line
+      -- is peeled: the language stays in `info`, the attributes move to
+      -- attrs/attr_order for blocks.lua's attr_of to pick up.
+      local lang, attrs, order = attr.peel(n.text)
+      out[#out + 1] = { kind = "code", indent = n.indent, info = lang,
                         text = table.concat(body, "\n"),
-                        attrs = {}, attr_order = {}, children = {} }
+                        attrs = attrs, attr_order = order, children = {} }
       -- skip the closing fence when present; an unterminated fence just ends
       if j <= #nodes and nodes[j].kind == "fence_close" then j = j + 1 end
       i = j
@@ -160,7 +165,9 @@ function M.parse(text)
     else
       local text, attrs, order
       if n.kind == "code" then
-        text, attrs, order = n.text, {}, {}
+        -- collapse() already peeled the fence's info string, carrying the
+        -- attributes on the collapsed node itself.
+        text, attrs, order = n.text, n.attrs, n.attr_order
       elseif n.kind == "tag_open" or n.kind == "self_closing" or n.kind == "tag_inline" then
         local body = n.text:match("^<[%w_%-]+%s*(.-)%s*/?>") or ""
         attrs, order = attr.parse(body)

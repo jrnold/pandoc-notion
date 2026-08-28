@@ -67,12 +67,23 @@ local function log_colgroup_colors(node)
   end
 end
 
--- Build one <table> node into a native pandoc Table/Row/Cell. Table cells
--- hold rich text only (never block content), so each <td>'s inner text is
--- read straight through inlines.read. A <colgroup>/<col> child, if present,
--- is simply not a <tr>, so the loop below already skips it when gathering
--- rows; any color it carries is logged above and then discarded, per the
--- ruling in log_colgroup_colors.
+-- A <td>'s inline content either arrives inline (`kind == "tag_inline"`,
+-- text like `<td>Cell</td>`) or, when the cell spans multiple lines, as
+-- CHILDREN of a "tag_open" td node with text just `<td>`. Cells hold rich
+-- text only (never block content), so in the multi-line case the children
+-- are converted to Blocks and then flattened with blocks_to_inlines rather
+-- than kept as blocks -- the same flattening inlines.read itself does.
+local function cell_content(td)
+  if td.kind == "tag_inline" then
+    return inlines.read(inline_label(td.text))
+  end
+  return pandoc.utils.blocks_to_inlines(children_of(td))
+end
+
+-- Build one <table> node into a native pandoc Table/Row/Cell. A
+-- <colgroup>/<col> child, if present, is simply not a <tr>, so the loop
+-- below already skips it when gathering rows; any color it carries is
+-- logged above and then discarded, per the ruling in log_colgroup_colors.
 local function table_block(node)
   log_colgroup_colors(node)
 
@@ -87,9 +98,8 @@ local function table_block(node)
     local cells = {}
     for _, td in ipairs(tr.children) do
       if td.tag == "td" then
-        local content = inlines.read(inline_label(td.text))
         cells[#cells + 1] = pandoc.Cell(
-          pandoc.Blocks({ pandoc.Plain(content) }),
+          pandoc.Blocks({ pandoc.Plain(cell_content(td)) }),
           pandoc.AlignDefault, 1, 1, attr_of(td))
       end
     end
@@ -109,6 +119,9 @@ local function table_block(node)
     for i = 2, #rows do body_rows[#body_rows + 1] = rows[i] end
   end
 
+  -- header-column="true" has a real native slot: TableBody's row_head_columns.
+  local row_head_columns = node.attrs["header-column"] == "true" and 1 or 0
+
   -- Table-level attributes other than header-row/header-column (e.g.
   -- fit-page-width) go on the Table's own Attr.
   local a, order = {}, {}
@@ -118,11 +131,14 @@ local function table_block(node)
     end
   end
 
+  -- Single-argument pandoc.Caption(long) yields `Caption Nothing […]`,
+  -- matching what pandoc's own readers emit; the two-argument form is not
+  -- usable here (see the media Figure comment above).
   return pandoc.Table(
-    pandoc.Caption(nil, {}),
+    pandoc.Caption({}),
     colspecs,
     pandoc.TableHead(head_rows, pandoc.Attr()),
-    { pandoc.TableBody(body_rows, {}, 0, pandoc.Attr()) },
+    { pandoc.TableBody(body_rows, {}, row_head_columns, pandoc.Attr()) },
     pandoc.TableFoot({}, pandoc.Attr()),
     pandoc.Attr("", {}, attr.ordered(a, order)))
 end
@@ -163,14 +179,27 @@ local function block_for(node)
       for _, k in ipairs(node.attr_order) do
         if k ~= "src" then a[k] = node.attrs[k]; order[#order + 1] = k end
       end
-      return pandoc.Figure(body, pandoc.Caption(nil, { pandoc.Plain(caption) }),
+      -- pandoc.Caption(short, long) types `short` as Inlines: passing nil for
+      -- it still crashes (`object has no __toinline metamethod`) on this
+      -- pandoc version. The single-argument form -- long only -- both avoids
+      -- the crash and produces `Caption Nothing […]`, matching what pandoc's
+      -- own readers emit for an unlabelled caption.
+      return pandoc.Figure(body, pandoc.Caption(pandoc.Blocks({ pandoc.Plain(caption) })),
                            pandoc.Attr("", { media.class }, attr.ordered(a, order)))
     end
   end
 
   local text = node.text
 
-  if text == "---" then return pandoc.HorizontalRule() end
+  if text == "---" then
+    -- HorizontalRule has no Attr slot, so a divider color is genuinely
+    -- dropped, not merely degraded -- log it per spec §8, same tier as
+    -- log_colgroup_colors above.
+    if next(node.attrs) ~= nil then
+      pandoc.log.info("Not rendering divider color (HorizontalRule has no attributes)")
+    end
+    return pandoc.HorizontalRule()
+  end
 
   local hashes, htext = text:match("^(#+)%s(.*)$")
   if hashes and #hashes <= 6 then
@@ -195,7 +224,21 @@ local function block_for(node)
   end
 
   -- ordinary paragraph, possibly with children
-  local para = pandoc.Para(inlines.read(text))
+  local content = inlines.read(text)
+
+  -- Spec §4.3: a standalone `![Caption](URL)` -- one Image and nothing
+  -- else on the line -- becomes a Figure with a populated Caption, the same
+  -- shape MEDIA_TAGS produce, rather than staying a Para. A line that mixes
+  -- an image with other text stays a normal Para.
+  if #node.children == 0 and #content == 1 and content[1].t == "Image" then
+    local img = content[1]
+    return pandoc.Figure(
+      pandoc.Blocks({ pandoc.Plain({ img }) }),
+      pandoc.Caption(pandoc.Blocks({ pandoc.Plain(img.caption) })),
+      attr_of(node))
+  end
+
+  local para = pandoc.Para(content)
   if #node.children > 0 then
     local kids = pandoc.Blocks({ para })
     for _, b in ipairs(children_of(node)) do kids:insert(b) end

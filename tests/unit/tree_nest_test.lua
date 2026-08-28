@@ -43,6 +43,19 @@ t.eq(f[1].kind, "code", "kind is code")
 t.eq(f[1].info, "python", "language captured")
 t.eq(f[1].text, "def f():\n\treturn 1", "body is literal, tabs preserved")
 
+-- the fence's info string carries its own attribute list, peeled the same
+-- way any other line is peeled: language stays in `info`, attributes move
+-- to attrs/attr_order for blocks.lua's attr_of to pick up.
+local fa = tree.parse('```lua {color="blue"}\nx = 1\n```')
+t.eq(fa[1].info, "lua", "language captured, attrs peeled off")
+t.eq(fa[1].attrs, { color = "blue" }, "fence attributes captured")
+t.eq(fa[1].attr_order, { "color" }, "fence attribute order captured")
+
+-- a bare fence still has no attributes
+local fb = tree.parse("```lua\nx = 1\n```")
+t.eq(fb[1].info, "lua", "bare fence keeps its language")
+t.eq(fb[1].attrs, {}, "bare fence has no attributes")
+
 -- unbalanced closing tag is recovered as literal text, never fatal
 local u = tree.parse("</callout>")
 t.eq(#u, 1, "recovered as one node")
