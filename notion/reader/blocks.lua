@@ -48,13 +48,34 @@ local function inline_label(text)
   return text:match("^<[%w_%-]+.->(.*)</[%w_%-]+>%s*$") or ""
 end
 
+-- A <colgroup>/<col> color has no home in pandoc's Table model -- ColSpec is
+-- just {alignment, width}, with no Attr slot -- so it is genuinely dropped
+-- rather than merely degraded. Spec §8 requires content that is actually
+-- dropped (as opposed to silently approximated) to be logged at INFO,
+-- phrased in pandoc's own style; column color is explicitly meaningful
+-- content per §3.1's cell/row/column precedence. Log once per <col> that
+-- carries a color; a colgroup with no colors logs nothing.
+local function log_colgroup_colors(node)
+  for _, child in ipairs(node.children) do
+    if child.tag == "colgroup" then
+      for _, col in ipairs(child.children) do
+        if col.tag == "col" and col.attrs.color then
+          pandoc.log.info("Not rendering column color (pandoc ColSpec has no attributes)")
+        end
+      end
+    end
+  end
+end
+
 -- Build one <table> node into a native pandoc Table/Row/Cell. Table cells
 -- hold rich text only (never block content), so each <td>'s inner text is
 -- read straight through inlines.read. A <colgroup>/<col> child, if present,
--- has nowhere to land in pandoc's Table model (no per-column Attr slot) and
--- is simply not a <tr>, so the loop below already skips it -- it is parsed
--- out of node.children and otherwise ignored, per Ruling F1.
+-- is simply not a <tr>, so the loop below already skips it when gathering
+-- rows; any color it carries is logged above and then discarded, per the
+-- ruling in log_colgroup_colors.
 local function table_block(node)
+  log_colgroup_colors(node)
+
   local trs = {}
   for _, child in ipairs(node.children) do
     if child.tag == "tr" then trs[#trs + 1] = child end

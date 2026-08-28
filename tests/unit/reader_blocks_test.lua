@@ -96,3 +96,22 @@ local TABLE_SPACE_INDENTED =
   '<table>\n    <tr>\n        <td>Cell</td>\n    </tr>\n</table>'
 has(TABLE_SPACE_INDENTED, "Table", "space-indented table parses to a real Table")
 has(TABLE_SPACE_INDENTED, '"Cell"', "space-indented table keeps cell content")
+
+-- colgroup/col: pandoc's ColSpec has no Attr slot for a per-column color, so
+-- it is genuinely dropped (logged at INFO -- see log_colgroup_colors) rather
+-- than represented; either way the table's own structure must stay intact.
+local TABLE_COLGROUP_COLOR = '<table>\n' ..
+  '\t<colgroup>\n\t\t<col color="red"/>\n\t</colgroup>\n' ..
+  '\t<tr>\n\t\t<td>A1</td>\n\t</tr>\n' ..
+  '</table>'
+has(TABLE_COLGROUP_COLOR, "Table", "colgroup with a col color still parses to a Table")
+has(TABLE_COLGROUP_COLOR, '"A1"', "colgroup with a col color keeps the row content")
+t.truthy(native(TABLE_COLGROUP_COLOR):find('"color"', 1, true) == nil,
+         "the dropped column color does not leak into any native Attr")
+
+local TABLE_COLGROUP_NO_COLOR = '<table>\n' ..
+  '\t<colgroup>\n\t\t<col/>\n\t</colgroup>\n' ..
+  '\t<tr>\n\t\t<td>A1</td>\n\t</tr>\n' ..
+  '</table>'
+has(TABLE_COLGROUP_NO_COLOR, "Table", "colgroup with no color is silently ignored")
+has(TABLE_COLGROUP_NO_COLOR, '"A1"', "colgroup with no color keeps the row content")
