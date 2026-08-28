@@ -15,7 +15,15 @@ local function split_indent(line)
   return #tabs, line:sub(#tabs + 1)
 end
 
--- Classify a non-fence line that starts with '<'. Returns kind, tag or nil.
+-- Escape a tag name for safe interpolation into a Lua pattern: '-' is a
+-- lazy-quantifier metacharacter in patterns, not a literal, so hyphenated
+-- tags (meeting-notes, mention-*) must be escaped before use in a match.
+local function pat_escape(tag)
+  return (tag:gsub("%-", "%%-"))
+end
+
+-- Classify a non-fence line that starts with '<' (leading spaces already
+-- skipped by the caller). Returns kind, tag or nil.
 local function tag_kind(body)
   local closing = body:match("^</([%w_%-]+)>%s*$")
   if closing then
@@ -24,36 +32,59 @@ local function tag_kind(body)
   end
   local tag = body:match("^<([%w_%-]+)[%s/>]")
   if not tag or not schema.is_known_tag(tag) then return nil end
-  if body:match("/>%s*$") then return "self_closing", tag end
-  if body:match("</" .. tag .. ">%s*$") then return "tag_inline", tag end
-  return "tag_open", tag
+  local pat = pat_escape(tag)
+  -- Inline-close must be checked before the generic self-closing suffix:
+  -- a still-open container line can legitimately end in "...trailing/>"
+  -- from unrelated content further down the line.
+  if body:match("</" .. pat .. ">%s*$") then return "tag_inline", tag end
+  -- Anchored on the opening tag itself, so a '/>' that belongs to some
+  -- other embedded tag later in the line can't be mistaken for this one
+  -- self-closing (requires no '>' between the tag name and the '/>').
+  if body:match("^<" .. pat .. "[^>]*/>%s*$") then return "self_closing", tag end
+  -- Only tags in schema.CONTAINERS may open a multi-line container; any
+  -- other known tag that is neither self-closing nor inline-closed is
+  -- malformed here and recovered as literal text.
+  if schema.CONTAINERS[tag] then return "tag_open", tag end
+  return nil
 end
 
 function M.classify(text)
   local out, fence = {}, nil
   for _, raw in ipairs(M.lines(text)) do
-    local depth, body = split_indent(raw)
     if fence then
-      local close = body:match("^(`+)%s*$")
+      -- Literal: strip only the fence's own recorded prefix, and only when
+      -- the line actually starts with it; interpret nothing else.
+      local after = raw
+      if raw:sub(1, #fence.prefix) == fence.prefix then
+        after = raw:sub(#fence.prefix + 1)
+      end
+      local close = after:match("^(`+)%s*$")
       if close and #close >= #fence.marker then
         out[#out + 1] = { kind = "fence_close", indent = fence.indent, text = "" }
         fence = nil
       else
-        -- Literal: strip only the fence's own indentation, interpret nothing.
-        out[#out + 1] = { kind = "fence_body", indent = fence.indent,
-                          text = raw:sub(fence.indent + 1) }
+        out[#out + 1] = { kind = "fence_body", indent = fence.indent, text = after }
       end
     else
-      local marker, info = body:match("^(```+)%s*(.-)%s*$")
+      local depth, body = split_indent(raw)
+      -- Fence and tag detection skip leading SPACES too (on top of the tabs
+      -- already stripped into `depth`): nesting inside tag-balanced
+      -- containers is cosmetic, so a space-indented tag or fence must still
+      -- be recognised. Plain text keeps its spaces (handled below).
+      local detect = body:gsub("^ +", "")
+      local marker, info = detect:match("^(```+)%s*(.-)%s*$")
       if marker then
-        fence = { marker = marker, indent = depth }
+        fence = { marker = marker, indent = depth, prefix = raw:match("^[ \t]*") }
         out[#out + 1] = { kind = "fence_open", indent = depth, text = info }
       elseif body == "" then
         out[#out + 1] = { kind = "blank", indent = depth, text = "" }
       else
-        local kind, tag = tag_kind(body)
-        out[#out + 1] = { kind = kind or "text", tag = tag,
-                          indent = depth, text = body }
+        local kind, tag = tag_kind(detect)
+        if kind then
+          out[#out + 1] = { kind = kind, tag = tag, indent = depth, text = detect }
+        else
+          out[#out + 1] = { kind = "text", indent = depth, text = body }
+        end
       end
     end
   end
