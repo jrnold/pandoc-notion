@@ -60,4 +60,108 @@ function M.classify(text)
   return out
 end
 
+local attr = require "notion.attr"
+
+-- Collapse fence runs into single `code` nodes and drop blanks.
+local function collapse(nodes)
+  local out, i = {}, 1
+  while i <= #nodes do
+    local n = nodes[i]
+    if n.kind == "fence_open" then
+      local body, j = {}, i + 1
+      while j <= #nodes and nodes[j].kind == "fence_body" do
+        body[#body + 1] = nodes[j].text
+        j = j + 1
+      end
+      out[#out + 1] = { kind = "code", indent = n.indent, info = n.text,
+                        text = table.concat(body, "\n"),
+                        attrs = {}, attr_order = {}, children = {} }
+      -- skip the closing fence when present; an unterminated fence just ends
+      if j <= #nodes and nodes[j].kind == "fence_close" then j = j + 1 end
+      i = j
+    elseif n.kind == "blank" then
+      i = i + 1
+    else
+      out[#out + 1] = n
+      i = i + 1
+    end
+  end
+  return out
+end
+
+-- Build the tree. `stack` holds open containers; indentation nests everything
+-- else. Returns the roots.
+function M.parse(text)
+  local nodes = collapse(M.classify(text))
+  local roots = {}
+  local open = {}          -- open tag containers, innermost last
+
+  local function current_children()
+    if #open > 0 then return open[#open].children end
+    return roots
+  end
+
+  -- Attach `node` by indentation within `list`, descending into the last
+  -- sibling chain until the depth matches.
+  local function attach(list, node, depth)
+    local target, level = list, 0
+    while level < depth and #target > 0 do
+      target = target[#target].children
+      level = level + 1
+    end
+    target[#target + 1] = node
+  end
+
+  local base_depth = {}    -- indent depth at which each open container started
+
+  for _, n in ipairs(nodes) do
+    if n.kind == "tag_close" then
+      if #open > 0 and open[#open].tag == n.tag then
+        table.remove(open)
+        table.remove(base_depth)
+      else
+        -- Unbalanced: recover as literal text.
+        attach(current_children(),
+               { kind = "text", text = n.text ~= "" and n.text or ("</" .. n.tag .. ">"),
+                 attrs = {}, attr_order = {}, children = {} },
+               0)
+      end
+    else
+      local text, attrs, order
+      if n.kind == "code" then
+        text, attrs, order = n.text, {}, {}
+      elseif n.kind == "tag_open" or n.kind == "self_closing" or n.kind == "tag_inline" then
+        local body = n.text:match("^<[%w_%-]+%s*(.-)%s*/?>") or ""
+        attrs, order = attr.parse(body)
+        text = n.text
+      else
+        -- Inside a tag-balanced container, nesting comes from tag balance,
+        -- not indentation, so leading spaces there are purely cosmetic
+        -- (Notion's own docs space-indent container children).
+        local raw = n.text
+        if #open > 0 then raw = raw:gsub("^ +", "") end
+        text, attrs, order = attr.peel(raw)
+      end
+
+      local node = { kind = n.kind, tag = n.tag, info = n.info, text = text,
+                     attrs = attrs, attr_order = order, children = {} }
+
+      -- Inside a tag container, indentation is cosmetic: attach directly.
+      if #open > 0 then
+        local rel = n.indent - base_depth[#base_depth] - 1
+        attach(open[#open].children, node, rel > 0 and rel or 0)
+      else
+        attach(roots, node, n.indent)
+      end
+
+      if n.kind == "tag_open" then
+        open[#open + 1] = node
+        base_depth[#base_depth + 1] = n.indent
+      end
+    end
+  end
+
+  return roots
+end
+
 return M
