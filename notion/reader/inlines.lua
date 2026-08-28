@@ -72,6 +72,9 @@ function M.fold(ils)
         out:insert(pandoc.Str(il.text))     -- unbalanced or unknown: literal
         i = i + 1
       end
+    elseif tag and kind == "close" then
+      out:insert(pandoc.Str(il.text))       -- stray close: literal, not RawInline
+      i = i + 1
     else
       out:insert(il)
       i = i + 1

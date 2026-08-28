@@ -7,6 +7,9 @@ end
 local function has(ils, needle, msg)
   t.truthy(render(ils):find(needle, 1, true) ~= nil, msg)
 end
+local function has_not(ils, needle, msg)
+  t.truthy(render(ils):find(needle, 1, true) == nil, msg)
+end
 
 -- the pinned extension set must not fabricate constructs NFM lacks
 local lit = inlines.read("~sub~ and H~2~O and @citekey")
@@ -43,3 +46,13 @@ t.truthy(render(cit):find("Cite") == nil, "citation is not a Cite node")
 
 -- unknown tags survive as literal text rather than disappearing
 has(inlines.read("<marquee>hi</marquee>"), "marquee", "unknown tag kept as text")
+
+-- unmatched/unknown tags fold to literal text uniformly -- both ends become
+-- Str, never a bare RawInline, so a later NFM-escaping pass treats them the
+-- same way (see the writer, which escapes Str but not RawInline verbatim).
+has_not(inlines.read("<marquee>hi</marquee>"), "RawInline",
+    "unknown tag pair leaves no RawInline node")
+has_not(inlines.read("</mention-user>"), "RawInline",
+    "stray closing tag becomes literal text, not RawInline")
+has_not(inlines.read('<mention-user url="u">Ada'), "RawInline",
+    "unbalanced open tag becomes literal text, not RawInline")
