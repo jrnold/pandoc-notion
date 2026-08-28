@@ -11,6 +11,22 @@ local function has_not(ils, needle, msg)
   t.truthy(render(ils):find(needle, 1, true) == nil, msg)
 end
 
+local function types(ils)
+  local out = {}
+  for _, il in ipairs(ils) do out[#out + 1] = il.t end
+  return out
+end
+local function has_type(ils, ty, msg)
+  local found = false
+  for _, il in ipairs(ils) do if il.t == ty then found = true end end
+  t.truthy(found, msg)
+end
+local function lacks_type(ils, ty, msg)
+  local found = false
+  for _, il in ipairs(ils) do if il.t == ty then found = true end end
+  t.truthy(not found, msg)
+end
+
 -- the pinned extension set must not fabricate constructs NFM lacks
 local lit = inlines.read("~sub~ and H~2~O and @citekey")
 t.truthy(render(lit):find("Subscript") == nil, "no Subscript fabricated")
@@ -56,3 +72,27 @@ has_not(inlines.read("</mention-user>"), "RawInline",
     "stray closing tag becomes literal text, not RawInline")
 has_not(inlines.read('<mention-user url="u">Ada'), "RawInline",
     "unbalanced open tag becomes literal text, not RawInline")
+
+-- leading whitespace must not fall into markdown_strict's own indented-code-
+-- block rule (4+ leading spaces -> CodeBlock -> flattened to an inline Code
+-- span by blocks_to_inlines), which would silently destroy any markup inside.
+-- Shape-based, not substring: a prior substring assertion in this suite
+-- passed while hiding a wrong shape, so these check node types directly.
+local four_sp = inlines.read("    spaced")
+t.eq(types(four_sp), { "Str" }, "4-space-indented text is a single Str node")
+t.truthy(four_sp[1] and four_sp[1].text == "spaced",
+    "4-space-indented text keeps its content, leading spaces trimmed")
+
+local four_sp_bold = inlines.read("    **bold**")
+has_type(four_sp_bold, "Strong", "4-space-indented bold still parses as Strong")
+lacks_type(four_sp_bold, "Code",
+    "4-space-indented bold is NOT swallowed into a Code span")
+
+local two_sp = inlines.read("  spaced")
+t.eq(types(two_sp), { "Str" },
+    "2-space-indented text is still a single Str node (unchanged behavior)")
+t.truthy(two_sp[1] and two_sp[1].text == "spaced",
+    "2-space-indented text keeps its content")
+
+t.eq(types(inlines.read("a `code` b")), { "Str", "Space", "Code", "Space", "Str" },
+    "a genuine inline code span still parses as Code")

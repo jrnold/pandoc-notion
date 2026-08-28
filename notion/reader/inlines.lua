@@ -99,8 +99,19 @@ local function fold_citations(ils)
   return out
 end
 
+-- markdown_strict treats 4+ leading spaces as an indented code block, which
+-- blocks_to_inlines flattens to an inline Code span -- turning e.g.
+-- "    **bold**" into a literal Code span instead of Strong. NFM has no
+-- notion of leading-space indentation at the inline level (the container
+-- rule already strips any that is meaningful), so trim it before handing
+-- text to pandoc.read rather than let markdown_strict's block-level rule
+-- leak into inline parsing.
+local function trim_leading(text)
+  return text:gsub("^[ \t]+", "")
+end
+
 function M.read(text)
-  local doc = pandoc.read(text, M.EXTENSIONS)
+  local doc = pandoc.read(trim_leading(text), M.EXTENSIONS)
   local ils = pandoc.utils.blocks_to_inlines(doc.blocks)
   return fold_citations(M.fold(ils))
 end
