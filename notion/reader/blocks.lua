@@ -187,6 +187,19 @@ local function block_for(node)
       return pandoc.Figure(body, pandoc.Caption(pandoc.Blocks({ pandoc.Plain(caption) })),
                            pandoc.Attr("", { media.class }, attr.ordered(a, order)))
     end
+    -- A standalone <mention-*> line: BLOCK_TAGS/MEDIA_TAGS/table don't know
+    -- it, so without this branch it would fall through to the generic
+    -- paragraph path below. inlines.read(node.text) already builds the
+    -- mention Span with its own Attr straight from the tag's attribute
+    -- list, so node.attrs must NOT also be applied here via wrap() -- doing
+    -- so double-emits the same attributes as a redundant attribute Div
+    -- wrapper around the Para (which the writer then renders as a stray
+    -- trailing `{...}` on the line). Table tags are handled above and
+    -- BLOCK_TAGS/MEDIA_TAGS are the only other known-tag kinds, so mentions
+    -- are the only fallthrough case this needs to cover.
+    if schema.MENTION_TAGS[tag] then
+      return pandoc.Para(inlines.read(node.text))
+    end
   end
 
   local text = node.text

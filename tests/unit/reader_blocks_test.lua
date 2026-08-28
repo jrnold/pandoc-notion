@@ -176,3 +176,51 @@ has('```lua {color="blue"}\nx = 1\n```', '"color" , "blue"', "attributed fence's
 has("```lua\nx = 1\n```", '[ "lua" ]', "a bare fence still gets a clean language class")
 t.truthy(native("```lua\nx = 1\n```"):find("color", 1, true) == nil,
          "...and no stray attributes")
+
+-- Bug fix: a standalone <mention-*> line double-emitted its attributes.
+-- tree.parse classifies it as tag_inline/self_closing with its attrs
+-- parsed into node.attrs; inlines.read(node.text) ALSO builds the mention
+-- Span with those same attrs in its own Attr. Before the fix, block_for's
+-- generic paragraph fallthrough then wrap()ped that Para in a redundant
+-- attribute Div carrying node.attrs again -- the writer rendered that as a
+-- stray trailing `{...}` after the tag on round-trip. A standalone mention
+-- must come out as a bare `Para [ Span ... ]`, no enclosing Div, and the
+-- URL/attrs must appear exactly once (inside the Span).
+local MENTION_LINES = {
+  { name = "mention-user",        line = '<mention-user url="https://notion.so/u">Ada</mention-user>' },
+  { name = "mention-page",        line = '<mention-page url="https://notion.so/p">Page</mention-page>' },
+  { name = "mention-database",    line = '<mention-database url="https://notion.so/d">Database</mention-database>' },
+  { name = "mention-data-source", line = '<mention-data-source url="https://notion.so/ds">Source</mention-data-source>' },
+  { name = "mention-agent",       line = '<mention-agent url="https://notion.so/a">Agent</mention-agent>' },
+  { name = "mention-date",        line = '<mention-date start="2026-01-01"/>' },
+}
+
+for _, m in ipairs(MENTION_LINES) do
+  local n = native(m.line)
+  t.truthy(n:find("[ Para ", 1, true) ~= nil,
+           m.name .. ": standalone mention is a bare Para")
+  t.truthy(n:find("Div", 1, true) == nil,
+           m.name .. ": standalone mention has NO enclosing Div")
+  t.truthy(n:find('"' .. m.name .. '"', 1, true) ~= nil,
+           m.name .. ": mention class survives inside the Span")
+
+  local ok, out = pcall(pandoc.pipe, "pandoc",
+    { "-f", "./notion-markdown-reader.lua", "-t", "./notion-markdown-writer.lua" }, m.line)
+  t.truthy(ok, m.name .. ": round-trip does not error: " .. tostring(out))
+  if ok then
+    -- the writer always terminates its output with a trailing newline, same
+    -- as any text file; that is not the bug under test here.
+    t.eq(out, m.line .. "\n",
+         m.name .. ": standalone mention round-trips byte-identically, no trailing {...}")
+  end
+end
+
+-- control case: an inline mention embedded in running text must not regress
+has('Hi <mention-user url="https://notion.so/u">Ada</mention-user> there',
+    '"mention-user"', "inline mention in running text still works")
+t.truthy(native('Hi <mention-user url="https://notion.so/u">Ada</mention-user> there'):find("Div") == nil,
+         "inline mention in running text is still not wrapped")
+
+-- control case: a genuinely attributed paragraph must still get its wrapper
+has('Hello {color="blue"}', "Div", "an attributed (non-mention) paragraph still gets wrapped")
+has('Hello {color="blue"}', '"color" , "blue"', "...and still carries its color")
