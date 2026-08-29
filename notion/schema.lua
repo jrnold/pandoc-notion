@@ -69,4 +69,92 @@ function M.is_known_tag(tag)
   return (M.BLOCK_TAGS[tag] or M.MEDIA_TAGS[tag] or M.MENTION_TAGS[tag]) ~= nil
 end
 
+-- ---------------------------------------------------------------------------
+-- Notion block-type axis (block-JSON design doc 4.3).
+--
+-- This is the third coordinate: NFM tag <-> pandoc class <-> Notion type.
+-- Types with no NFM tag live in their own table rather than BLOCK_TAGS, so
+-- that is_known_tag() does not start accepting <bookmark> as valid NFM.
+-- ---------------------------------------------------------------------------
+
+-- Notion types that have no NFM tag at all.
+M.NOTION_BLOCKS = {
+  bookmark     = { class = "bookmark",     fields = { url = "url" } },
+  embed        = { class = "embed",        fields = { url = "url" } },
+  link_preview = { class = "link-preview", fields = { url = "url" } },
+  breadcrumb   = { class = "breadcrumb",   fields = {} },
+  template     = { class = "template",     fields = {}, rich_text = true,
+                   children = true },
+  tab          = { class = "tab",          fields = {}, children = true },
+}
+
+-- Notion type -> { class, fields, rich_text, children, custom }.
+-- `fields` maps a JSON payload key to an AST attribute name.
+-- `custom` marks a type whose structure needs a hand-written converter.
+M.NOTION_INDEX = {
+  -- regular, table-driven
+  paragraph         = { class = nil,                  fields = {}, rich_text = true, children = true },
+  quote             = { class = nil,                  fields = {}, rich_text = true, children = true },
+  divider           = { class = nil,                  fields = {} },
+  equation          = { class = nil,                  fields = {} },
+  callout           = { class = "callout",            fields = { icon = "icon" }, rich_text = true, children = true },
+  toggle            = { class = "toggle",             fields = {}, rich_text = true, children = true },
+  table_of_contents = { class = "table-of-contents",  fields = {} },
+  meeting_notes     = { class = "meeting-notes",      fields = {}, children = true },
+  transcription     = { class = "meeting-notes",      fields = {}, children = true },
+  child_page        = { class = "page",               fields = { title = "title" } },
+  child_database    = { class = "database",           fields = { title = "title" } },
+  unsupported       = { class = "unknown",            fields = { block_type = "alt" } },
+  mention           = { class = nil,                  fields = {}, custom = true },
+
+  -- irregular, hand-written (Tasks 8 and 11)
+  heading_1          = { class = nil,          fields = {}, custom = true },
+  heading_2          = { class = nil,          fields = {}, custom = true },
+  heading_3          = { class = nil,          fields = {}, custom = true },
+  heading_4          = { class = nil,          fields = {}, custom = true },
+  bulleted_list_item = { class = nil,          fields = {}, custom = true },
+  numbered_list_item = { class = nil,          fields = {}, custom = true },
+  to_do              = { class = nil,          fields = {}, custom = true },
+  code               = { class = nil,          fields = {}, custom = true },
+  table              = { class = nil,          fields = {}, custom = true },
+  table_row          = { class = nil,          fields = {}, custom = true },
+  column_list        = { class = "columns",    fields = {}, custom = true },
+  column             = { class = "column",     fields = {}, custom = true },
+  synced_block       = { class = "synced-block", fields = {}, custom = true },
+  image              = { class = "image",      fields = {}, custom = true },
+  video              = { class = "video",      fields = {}, custom = true },
+  audio              = { class = "audio",      fields = {}, custom = true },
+  pdf                = { class = "pdf",        fields = {}, custom = true },
+  file               = { class = "file",       fields = {}, custom = true },
+}
+
+-- Fold the NFM-less types in.
+for ntype, def in pairs(M.NOTION_BLOCKS) do
+  M.NOTION_INDEX[ntype] = {
+    class     = def.class,
+    fields    = def.fields,
+    rich_text = def.rich_text,
+    children  = def.children,
+  }
+end
+
+local notion_reverse = {}
+for ntype, def in pairs(M.NOTION_INDEX) do
+  -- child_page/child_database/transcription deliberately share a class with
+  -- another type; the first-listed canonical spelling wins the reverse.
+  if def.class and not notion_reverse[def.class] then
+    notion_reverse[def.class] = ntype
+  end
+end
+-- Pin the reverse for the three shared-class pairs, so a writer emitting a
+-- `page` Div produces child_page rather than whichever pairs() reached first.
+notion_reverse["page"]          = "child_page"
+notion_reverse["database"]      = "child_database"
+notion_reverse["meeting-notes"] = "meeting_notes"
+notion_reverse["synced-block"]  = "synced_block"
+
+function M.class_to_notion(class)
+  return notion_reverse[class]
+end
+
 return M
