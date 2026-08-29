@@ -15,7 +15,13 @@ t.eq(json.encode(json.obj({ rich_text = json.arr() })), '{"rich_text":[]}',
 local decoded = json.decode_or_diagnose('{"a":null,"b":1}')
 t.truthy(decoded.a ~= nil, "raw null is present and truthy")
 t.eq(json.get(decoded, "a"), nil, "get() returns nil for null")
-t.eq(json.get(decoded, "b"), 1, "get() returns real values")
+-- Spec 2.5: decode yields FLOATS, so JSON 1 arrives as 1.0. Numerically equal
+-- to 1, but t.eq compares stringified forms ("1.0" vs "1"), so assert the
+-- value numerically and pin the float-ness separately -- it is the behaviour
+-- props.lua's num_to_string exists to paper over.
+t.truthy(json.get(decoded, "b") == 1, "get() returns real values")
+t.eq(math.type(json.get(decoded, "b")), "float", "decoded numbers are floats")
+t.eq(math.tointeger(json.get(decoded, "b")), 1, "and recover as integers")
 t.eq(json.get(decoded, "missing"), nil, "get() returns nil for absent keys")
 t.eq(json.get(nil, "a"), nil, "get() tolerates a nil container")
 
