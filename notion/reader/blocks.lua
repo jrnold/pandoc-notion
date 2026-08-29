@@ -48,6 +48,47 @@ local function inline_label(text)
   return text:match("^<[%w_%-]+.->(.*)</[%w_%-]+>%s*$") or ""
 end
 
+-- The single source of truth for "what string does this node hand to
+-- inlines.read()", or nil for a node that never calls it (code, display
+-- math, divider, self-closing tags, "table"/"tag_open" container nodes
+-- whose children are read separately). block_for() below and gather()
+-- further down BOTH call this -- neither recomputes its own prefix-
+-- stripping -- so the batching cache's priming key and the key block_for
+-- actually looks up can never drift apart the way they once did.
+local function leaf_text(node)
+  if node.kind == "code" then return nil end
+
+  if node.kind == "text" then
+    local _, content = list_item(node.text)
+    if content then return content end
+  end
+
+  if node.kind == "tag_open" or node.kind == "self_closing" or node.kind == "tag_inline" then
+    local tag = node.tag
+    if tag == "td" then
+      return node.kind == "tag_inline" and inline_label(node.text) or nil
+    end
+    if tag == "table" then return nil end
+    if schema.BLOCK_TAGS[tag] then
+      return node.kind == "tag_inline" and inline_label(node.text) or nil
+    end
+    if schema.MEDIA_TAGS[tag] then return inline_label(node.text) end
+    if schema.MENTION_TAGS[tag] then return node.text end
+    -- unknown tag: fall through to the generic text-pattern handling below,
+    -- exactly as block_for()'s own fallthrough does for e.g. <unknown>.
+  end
+
+  local text = node.text
+  if text == "---" then return nil end
+  local hashes, htext = text:match("^(#+)%s(.*)$")
+  if hashes and #hashes <= 6 then return htext end
+  local eq = text:match("^%$%$(.*)%$%$$")
+  if eq then return nil end
+  local quote = text:match("^>%s?(.*)$")
+  if quote then return quote end
+  return text
+end
+
 -- A <colgroup>/<col> color has no home in pandoc's Table model -- ColSpec is
 -- just {alignment, width}, with no Attr slot -- so it is genuinely dropped
 -- rather than merely degraded. Spec §8 requires content that is actually
@@ -75,7 +116,7 @@ end
 -- than kept as blocks -- the same flattening inlines.read itself does.
 local function cell_content(td)
   if td.kind == "tag_inline" then
-    return inlines.read(inline_label(td.text))
+    return inlines.read(leaf_text(td))
   end
   return pandoc.utils.blocks_to_inlines(children_of(td))
 end
@@ -163,13 +204,13 @@ local function block_for(node)
     if def then
       local kids = children_of(node)
       if kind == "tag_inline" then
-        kids = pandoc.Blocks({ pandoc.Plain(inlines.read(inline_label(node.text))) })
+        kids = pandoc.Blocks({ pandoc.Plain(inlines.read(leaf_text(node))) })
       end
       return pandoc.Div(kids, attr_of(node, { def.class }))
     end
     local media = schema.MEDIA_TAGS[tag]
     if media then
-      local caption = inlines.read(inline_label(node.text))
+      local caption = inlines.read(leaf_text(node))
       local src = node.attrs.src or ""
       local body = pandoc.Blocks({
         pandoc.Plain({ pandoc.Link(caption, src) }) })
@@ -198,7 +239,7 @@ local function block_for(node)
     -- BLOCK_TAGS/MEDIA_TAGS are the only other known-tag kinds, so mentions
     -- are the only fallthrough case this needs to cover.
     if schema.MENTION_TAGS[tag] then
-      return pandoc.Para(inlines.read(node.text))
+      return pandoc.Para(inlines.read(leaf_text(node)))
     end
   end
 
@@ -217,7 +258,7 @@ local function block_for(node)
   local hashes, htext = text:match("^(#+)%s(.*)$")
   if hashes and #hashes <= 6 then
     local level = math.min(#hashes, 4)
-    local header = pandoc.Header(level, inlines.read(htext), attr_of(node))
+    local header = pandoc.Header(level, inlines.read(leaf_text(node)), attr_of(node))
     if #node.children > 0 and node.attrs.toggle == "true" then
       local kids = pandoc.Blocks({ header })
       for _, b in ipairs(children_of(node)) do kids:insert(b) end
@@ -231,13 +272,13 @@ local function block_for(node)
 
   local quote = text:match("^>%s?(.*)$")
   if quote then
-    local body = pandoc.Blocks({ pandoc.Para(inlines.read(quote)) })
+    local body = pandoc.Blocks({ pandoc.Para(inlines.read(leaf_text(node))) })
     for _, b in ipairs(children_of(node)) do body:insert(b) end
     return wrap(pandoc.BlockQuote(body), node)
   end
 
   -- ordinary paragraph, possibly with children
-  local content = inlines.read(text)
+  local content = inlines.read(leaf_text(node))
 
   -- Spec §4.3: a standalone `![Caption](URL)` -- one Image and nothing
   -- else on the line -- becomes a Figure with a populated Caption, the same
@@ -261,8 +302,8 @@ local function block_for(node)
 end
 
 -- Build a list item's blocks: its own content plus any nested children.
-local function item_blocks(node, content)
-  local first = pandoc.Plain(inlines.read(content))
+local function item_blocks(node)
+  local first = pandoc.Plain(inlines.read(leaf_text(node)))
   local body  = pandoc.Blocks({ next(node.attrs) == nil and first
                                 or pandoc.Div({ first }, attr_of(node)) })
   for _, b in ipairs(children_of(node)) do body:insert(b) end
@@ -273,17 +314,17 @@ convert = function(nodes)
   local out, i = pandoc.Blocks({}), 1
   while i <= #nodes do
     local node = nodes[i]
-    local kind, content = nil, nil
-    if node.kind == "text" then kind, content = list_item(node.text) end
+    local kind = nil
+    if node.kind == "text" then kind = list_item(node.text) end
 
     if kind then
       -- gather the run of same-kind siblings into one list
       local items, j = {}, i
       while j <= #nodes do
-        local nk, nc = nil, nil
-        if nodes[j].kind == "text" then nk, nc = list_item(nodes[j].text) end
+        local nk = nil
+        if nodes[j].kind == "text" then nk = list_item(nodes[j].text) end
         if nk ~= kind then break end
-        items[#items + 1] = item_blocks(nodes[j], nc)
+        items[#items + 1] = item_blocks(nodes[j])
         j = j + 1
       end
       out:insert(kind == "bullet" and pandoc.BulletList(items)
@@ -298,13 +339,13 @@ convert = function(nodes)
 end
 
 -- Gather every leaf inline run in the tree so they can be parsed in one pass.
+-- leaf_text() is the same function block_for() itself uses to decide what to
+-- hand to inlines.read(), so the primed cache key and the lookup key can
+-- never disagree.
 local function gather(nodes, acc)
   for _, node in ipairs(nodes) do
-    if node.kind ~= "code" then
-      local _, content = nil, nil
-      if node.kind == "text" then _, content = list_item(node.text) end
-      acc[#acc + 1] = content or node.text
-    end
+    local text = leaf_text(node)
+    if text then acc[#acc + 1] = text end
     gather(node.children, acc)
   end
   return acc

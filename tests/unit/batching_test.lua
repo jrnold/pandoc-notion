@@ -127,3 +127,74 @@ do
              "leading whitespace does not survive as a Code span: " .. text)
   end
 end
+
+-- gather()'s priming keys must match what block_for() actually looks up for
+-- EVERY node kind, not just plain paragraphs -- headings, blockquotes, list
+-- items/todos, and mixed documents all strip a prefix before calling
+-- inlines.read, and gather() must strip the identical prefix or these node
+-- kinds silently fall back to one pandoc.read per line, defeating the
+-- batching (previously measured: a heading-only document made MORE calls
+-- batched than unbatched, a net pessimization).
+local function count_reads(src)
+  inlines.reset()
+  pandoc.read = counting
+  calls = 0
+  blocks.convert_document(tree.parse(src))
+  local n = calls
+  pandoc.read = real_read
+  return n
+end
+
+local function assert_one_read_and_identical_output(src, label)
+  t.eq(count_reads(src), 1, label .. ": convert_document makes exactly one pandoc.read call")
+  inlines.reset()
+  local unbatched = pandoc.write(pandoc.Pandoc(blocks.convert(tree.parse(src))), "native")
+  inlines.reset()
+  local batched = pandoc.write(pandoc.Pandoc(blocks.convert_document(tree.parse(src))), "native")
+  t.eq(batched, unbatched, label .. ": batched and unbatched output are identical")
+end
+
+do
+  local headings = {}
+  for i = 1, 10 do headings[#headings + 1] = "# Heading " .. i end
+  assert_one_read_and_identical_output(table.concat(headings, "\n"), "10 headings")
+end
+
+do
+  local quotes = {}
+  for i = 1, 10 do quotes[#quotes + 1] = "> Quote " .. i end
+  assert_one_read_and_identical_output(table.concat(quotes, "\n"), "10 blockquotes")
+end
+
+do
+  -- Headings, quotes, paragraphs, bullet/ordered items and to-dos, mixed in
+  -- one document.
+  local mixed = table.concat({
+    "# Title",
+    "A plain paragraph.",
+    "> A quote",
+    "- bullet one",
+    "- bullet two",
+    "1. ordered one",
+    "- [ ] todo one",
+    "- [x] todo two",
+    "## Subheading",
+    "Another paragraph.",
+  }, "\n")
+  assert_one_read_and_identical_output(mixed, "mixed headings/quotes/paragraphs/lists/todos")
+end
+
+do
+  -- A code block and display math never reach inlines.read at all, so they
+  -- must contribute zero reads and must not break the batch for the
+  -- surrounding paragraphs.
+  local src = table.concat({
+    "Paragraph one.",
+    "```",
+    "code here",
+    "```",
+    "$$x^2$$",
+    "Paragraph two.",
+  }, "\n")
+  assert_one_read_and_identical_output(src, "code block + display math + paragraphs")
+end
