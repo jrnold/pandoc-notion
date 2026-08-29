@@ -35,6 +35,17 @@ lacks(ss, "<sup", "no <sup> tag")
 contains(ss, "\226\130\130", "subscript two is U+2082")
 contains(ss, "\194\178", "superscript two is U+00B2")
 
+-- Sub/superscript over NON-digit content is the spec table's "Unicode
+-- equivalents where they exist, ELSE LITERAL TEXT" -- an APPROXIMATION, not a
+-- drop: every character survives, so nothing may be logged. (This used to
+-- log INFO, contradicting the spec's own tier.)
+do
+  local out, err = nfm.from_markdown_verbose("x~abc~ and y^def^\n")
+  contains(out, "xabc", "non-digit subscript keeps its text literally")
+  contains(out, "ydef", "non-digit superscript keeps its text literally")
+  t.eq(err, "", "non-digit sub/superscript is an approximation and logs nothing")
+end
+
 -- Degradation is SILENT at default verbosity -- no log output at all, for
 -- an approximated (not dropped) construct such as a footnote or a
 -- definition list.
@@ -64,3 +75,68 @@ local nested_cell = table.concat({
 local _, err_drop = nfm.from_markdown_verbose(nested_cell)
 contains(err_drop, "INFO", "true drop is logged at INFO")
 contains(err_drop, "table cell", "and names the location")
+
+-- Every remaining TRUE DROP on the write side. Each keeps the content it can
+-- and discards something NFM has no slot for at all, so each must log INFO
+-- under --verbose and stay silent at default verbosity. These were all
+-- verified as producing zero bytes of stderr before this suite grew.
+local WRITE_DROPS = {
+  { name  = "table caption",
+    input = "| a | b |\n|---|---|\n| 1 | 2 |\n\n: My caption\n",
+    needle = "table caption" },
+  { name  = "heading identifier",
+    input = "# Foo {#myid}\n",
+    needle = 'identifier "myid"' },
+  { name  = "heading class",
+    input = "# Foo {.mycls}\n",
+    needle = 'heading class "mycls"' },
+  { name  = "span class",
+    input = "[inner]{.myclass}\n",
+    needle = 'Span class "myclass"' },
+  { name  = "code block class past the first",
+    input = "``` {.lua .numberLines}\nx = 1\n```\n",
+    needle = 'code block class "numberLines"' },
+}
+
+for _, case in ipairs(WRITE_DROPS) do
+  local out, err = nfm.from_markdown_verbose(case.input)
+  contains(err, "INFO", case.name .. " drop is logged at INFO")
+  contains(err, case.needle, case.name .. " drop names what was dropped")
+  -- and the content that CAN survive still does
+  t.truthy(#out > 0, case.name .. " still produces output")
+end
+
+-- Silence at default verbosity, for every write-side drop above: INFO is an
+-- INFO, not a warning, so nothing may reach stderr without --verbose.
+for _, case in ipairs(WRITE_DROPS) do
+  local tmp = os.tmpname()
+  local fh = assert(io.open(tmp, "wb")); fh:write(case.input); fh:close()
+  local p = assert(io.popen(string.format("pandoc -f markdown -t %q %q 2>&1 >/dev/null",
+                                          nfm.ROOT .. "/notion-markdown-writer.lua", tmp), "r"))
+  local quiet_err = p:read("a")
+  p:close()
+  os.remove(tmp)
+  t.eq(quiet_err, "", case.name .. " drop is silent at default verbosity")
+end
+
+-- The READ side drops a block wrapper inside a <td> the same way the write
+-- side does (blocks_to_inlines keeps the text, loses the structure), so it
+-- must log the same way -- the inconsistency this pins was one construct
+-- being loud in one direction and silent in the other.
+do
+  local td_blocks = "<table>\n<tr>\n<td>\n- a\n- b\n</td>\n</tr>\n</table>\n"
+  local out, err = nfm.to_nfm_with_log(td_blocks)
+  contains(err, "INFO", "reader logs a block wrapper dropped inside <td>")
+  contains(err, "table cell", "and names the location, as the writer does")
+  contains(out, "ab", "the cell's text still survives the drop")
+
+  local tmp = os.tmpname()
+  local fh = assert(io.open(tmp, "wb")); fh:write(td_blocks); fh:close()
+  local p = assert(io.popen(string.format("pandoc -f %q -t %q %q 2>&1 >/dev/null",
+                                          nfm.ROOT .. "/notion-markdown-reader.lua",
+                                          nfm.ROOT .. "/notion-markdown-writer.lua", tmp), "r"))
+  local quiet_err = p:read("a")
+  p:close()
+  os.remove(tmp)
+  t.eq(quiet_err, "", "reader's <td> block drop is silent at default verbosity")
+end

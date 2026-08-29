@@ -44,12 +44,16 @@ t.eq(w.render({ pandoc.Subscript({ pandoc.Str("2") }) }), "\226\130\130",
      "subscript uses Unicode")
 t.eq(w.render({ pandoc.Superscript({ pandoc.Str("2") }) }), "\194\178",
      "superscript uses Unicode")
--- non-digit content has no NFM subscript/superscript equivalent: dropped to
--- plain text (and logged at INFO), not left in a raw HTML <sub>/<sup>.
+-- Non-digit content has no NFM subscript/superscript equivalent, so it falls
+-- back to literal text -- the spec's "Unicode equivalents where they exist,
+-- else literal text". Every character survives, so this is an APPROXIMATION,
+-- not a drop, and is therefore NOT logged (see tests/degrade_test.lua).
 t.eq(w.render({ pandoc.Subscript({ pandoc.Str("abc") }) }), "abc",
      "non-digit subscript degrades to plain text")
 t.eq(w.render({ pandoc.Superscript({ pandoc.Str("abc") }) }), "abc",
      "non-digit superscript degrades to plain text")
+t.eq(w.render({ pandoc.Subscript({ pandoc.Str("a2b") }) }), "a\226\130\130b",
+     "a mixed subscript maps the digits and keeps the rest literally")
 
 -- raw HTML: pass through only when the tag is in NFM's closed vocabulary;
 -- otherwise it is dropped (logged at INFO), never left as literal HTML.
@@ -57,3 +61,25 @@ t.eq(w.render({ pandoc.RawInline("html", '<mention-user url="u://1">') }),
      '<mention-user url="u://1">', "known-vocabulary raw HTML passes through")
 t.eq(w.render({ pandoc.RawInline("html", "<sub>") }), "",
      "unknown raw HTML is dropped, not left as literal text")
+
+-- Code content is literal, never backslash-escaped -- but a backtick inside
+-- it would close the span early, so the fence grows to one longer than the
+-- longest run the content holds, with padding spaces when the content itself
+-- starts or ends with a backtick. Backtick-free content is untouched.
+t.eq(w.render({ pandoc.Code("plain") }), "`plain`", "backtick-free code is unchanged")
+t.eq(w.render({ pandoc.Code("a`b") }), "``a`b``", "one backtick inside grows the fence")
+t.eq(w.render({ pandoc.Code("a``b") }), "```a``b```", "the fence beats the longest run")
+t.eq(w.render({ pandoc.Code("`lead") }), "`` `lead ``", "a leading backtick is padded")
+t.eq(w.render({ pandoc.Code("trail`") }), "`` trail` ``", "a trailing backtick is padded")
+t.eq(w.render({ pandoc.Code("a\\b*c") }), "`a\\b*c`", "code is still never escaped")
+
+-- A mention Span with no attributes at all self-closes tightly, matching how
+-- every other void NFM tag is written (`<empty-block/>`).
+t.eq(w.render({ pandoc.Span({}, pandoc.Attr("", { "mention", "mention-page" }, {})) }),
+     "<mention-page/>", "an attribute-less mention self-closes with no stray space")
+
+-- A Span carrying a class NFM cannot express keeps its content and its
+-- attributes; only the class is dropped (logged at INFO).
+t.eq(w.render({ pandoc.Span({ pandoc.Str("x") },
+      pandoc.Attr("", { "foreign" }, { color = "blue" })) }),
+     '<span color="blue">x</span>', "an unknown Span class drops, content and attrs stay")

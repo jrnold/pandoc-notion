@@ -17,33 +17,32 @@ local SUP = { ["0"]="\226\129\176", ["1"]="\194\185",     ["2"]="\194\178",
 
 local render     -- forward declaration
 
--- Returns the mapped text plus whether every character had a mapping. A
--- caller-visible `false` means the styling itself had to be dropped (not
--- merely approximated) for at least one character -- e.g. `x~abc~` has no
--- NFM subscript equivalent for letters -- so callers log it.
+-- Map each character through `table_`, leaving anything unmapped as itself.
+-- Per spec §8 this is an APPROXIMATION, not a drop -- the spec's own table
+-- says "Unicode equivalents where they exist, else literal text" -- so an
+-- unmapped character is deliberately NOT logged: `x~abc~` still writes
+-- `xabc`, with every character intact.
 local function map_digits(text, table_)
-  local out, all_mapped = {}, true
-  for c in text:gmatch(".") do
-    if table_[c] then out[#out + 1] = table_[c]
-    else all_mapped = false; out[#out + 1] = c end
-  end
-  return table.concat(out), all_mapped
+  local out = {}
+  for c in text:gmatch(".") do out[#out + 1] = table_[c] or c end
+  return table.concat(out)
 end
 
--- Read an Attr's key/value list into a ` k="v" …` suffix (no braces): the
--- format tag attributes use, as opposed to attr.render's `{…}` prose suffix.
-local function tag_attrs(attributes, fallback_order)
-  local a, order = attr.from_attr(attributes)
-  if #order == 0 then order = fallback_order or {} end
-  return attr.render(a, order):gsub("^ {", ""):gsub("}$", "")
+-- Read an Attr's key/value list into a ` k="v" …` suffix (leading space, no
+-- braces): the format tag attributes use, as opposed to attr.render's `{…}`
+-- prose suffix. Shared with writer/blocks.lua -- see attr.tag_attrs.
+local function tag_attrs(attributes)
+  return attr.tag_attrs(attr.from_attr(attributes))
 end
 
 -- The tag name a raw HTML fragment opens, closes, or self-closes as -- used
 -- only to decide whether it is in NFM's closed vocabulary, per raw_tag in
--- reader/inlines.lua.
-local function html_tag_name(text)
+-- reader/inlines.lua. Exported because writer/blocks.lua needs the identical
+-- test for RawBlock and must not keep a second copy of it.
+function M.html_tag_name(text)
   return text:match("^</([%w_%-]+)>%s*$") or text:match("^<([%w_%-]+)[%s/>]")
 end
+local html_tag_name = M.html_tag_name
 
 local function span(el)
   local classes = {}
@@ -57,19 +56,25 @@ local function span(el)
   end
   if classes.mention then
     for _, c in ipairs(el.classes) do
-      local def = schema.MENTION_TAGS[c]
-      if def then
-        local body = tag_attrs(el.attributes, def.attrs)
+      if schema.MENTION_TAGS[c] then
+        local body = tag_attrs(el.attributes)
         local inner = render(el.content)
-        if inner == "" then return "<" .. c .. " " .. body .. "/>" end
-        return "<" .. c .. " " .. body .. ">" .. inner .. "</" .. c .. ">"
+        if inner == "" then return "<" .. c .. body .. "/>" end
+        return "<" .. c .. body .. ">" .. inner .. "</" .. c .. ">"
       end
     end
   end
-  -- plain attribute span, e.g. inline color
+  -- plain attribute span, e.g. inline color. Any class that got this far is
+  -- none NFM knows (the citation/emoji/mention branches above returned
+  -- already) and NFM's <span> carries attributes only, so the class has
+  -- nowhere to go: a genuine drop, logged per spec Sec 8.
+  if #el.classes > 0 then
+    pandoc.log.info('Not rendering Span class "' .. el.classes[1]
+                    .. '" (NFM <span> carries attributes, not classes)')
+  end
   local body = tag_attrs(el.attributes)
   if body == "" then return render(el.content) end
-  return "<span " .. body .. ">" .. render(el.content) .. "</span>"
+  return "<span" .. body .. ">" .. render(el.content) .. "</span>"
 end
 
 local handlers = {
@@ -81,7 +86,23 @@ local handlers = {
   Emph       = function(el) return "*" .. render(el.content) .. "*" end,
   Strikeout  = function(el) return "~~" .. render(el.content) .. "~~" end,
   Underline  = function(el) return '<span underline="true">' .. render(el.content) .. "</span>" end,
-  Code       = function(el) return "`" .. el.text .. "`" end,   -- literal, never escaped
+  -- Content is literal, never backslash-escaped -- but a backtick INSIDE it
+  -- would close the span early and re-read as something else, so the span is
+  -- fenced with a run one longer than the longest run it contains (the
+  -- standard markdown remedy), padded with spaces when the content itself
+  -- starts or ends with a backtick. Content with no backtick is unaffected:
+  -- a one-backtick fence, no padding, exactly as before. Reachable only from
+  -- foreign-format input; NFM's own reader never yields such a Code.
+  Code       = function(el)
+                 local longest = 0
+                 for run in el.text:gmatch("`+") do
+                   if #run > longest then longest = #run end
+                 end
+                 if longest == 0 then return "`" .. el.text .. "`" end
+                 local fence = string.rep("`", longest + 1)
+                 local pad = (el.text:sub(1, 1) == "`" or el.text:sub(-1) == "`") and " " or ""
+                 return fence .. pad .. el.text .. pad .. fence
+               end,
   Math       = function(el)
                  if el.mathtype == "DisplayMath" then return "$$" .. el.text .. "$$" end
                  return "$" .. el.text .. "$"
@@ -97,20 +118,8 @@ local handlers = {
   -- rather than uppercasing, since Lua's stdlib has no Unicode case mapping
   -- and this project takes on no dependency to get one.
   SmallCaps  = function(el) return render(el.content):upper() end,
-  Subscript  = function(el)
-                 local text, ok = map_digits(render(el.content), SUB)
-                 if not ok then
-                   pandoc.log.info("Not rendering Subscript (non-digit content has no NFM equivalent)")
-                 end
-                 return text
-               end,
-  Superscript= function(el)
-                 local text, ok = map_digits(render(el.content), SUP)
-                 if not ok then
-                   pandoc.log.info("Not rendering Superscript (non-digit content has no NFM equivalent)")
-                 end
-                 return text
-               end,
+  Subscript  = function(el) return map_digits(render(el.content), SUB) end,
+  Superscript= function(el) return map_digits(render(el.content), SUP) end,
   Cite       = function(el) return render(el.content) end,
   Note       = function() return "" end,   -- handled by the block writer
   RawInline  = function(el)

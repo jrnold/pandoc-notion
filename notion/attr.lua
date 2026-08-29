@@ -9,6 +9,9 @@ for _, c in ipairs(BASE) do
   M.COLORS[c .. "_bg"] = true
 end
 
+-- Currently unused by production code: nothing validates a colour attribute
+-- on the way through -- an unknown value is carried across verbatim. Kept
+-- (and unit-tested) for a future validating pass.
 function M.is_color(v) return M.COLORS[v] == true end
 
 -- Parse an attribute-list body (the text between the braces).
@@ -54,6 +57,20 @@ function M.render(pairs_, order)
   end
   if #parts == 0 then return "" end
   return " {" .. table.concat(parts, " ") .. "}"
+end
+
+-- The same attribute list formatted for the inside of a TAG's `< >` rather
+-- than as a trailing `{…}` prose suffix: M.render gives ` {k="v"}`, this
+-- strips the braces and keeps the leading space, so a caller can write
+-- `"<" .. tag .. tag_attrs(a, order) .. ">"` and get `<tag k="v">` or, when
+-- there are no attributes at all, a bare `<tag>`.
+--
+-- ONE definition, shared by writer/blocks.lua and writer/inlines.lua. These
+-- were two near-identical copies that disagreed on the leading space; four
+-- separate bugs in this project came from two places computing the same
+-- thing, so the space is now part of the contract rather than per-caller.
+function M.tag_attrs(pairs_, order)
+  return (M.render(pairs_, order):gsub("^ {", " "):gsub("}$", ""))
 end
 
 -- Build an ordered {{k,v},…} array for pandoc.Attr.

@@ -89,6 +89,15 @@ local function leaf_text(node)
   if text == "---" then return nil end
   local hashes, htext = text:match("^(#+)%s(.*)$")
   if hashes and #hashes <= 6 then return htext end
+  -- A leading '#' run that block_for() does NOT treat as a heading -- seven
+  -- or more hashes, or no space after them -- is ordinary text. It still has
+  -- to be handed to inlines.read backslash-escaped, because markdown_strict's
+  -- own (looser) ATX rule reparses `####### seven` as a heading and
+  -- blocks_to_inlines then flattens it to bare `seven`, eating the hashes
+  -- with no error and no log. all_symbols_escapable is on, so the backslash
+  -- is consumed and the '#' run survives verbatim. The writer never escapes
+  -- '#' (it is not in escape.SPECIAL), so this round-trips byte-identically.
+  if text:sub(1, 1) == "#" then return "\\" .. text end
   local eq = text:match("^%$%$(.*)%$%$$")
   if eq then return nil end
   local quote = text:match("^>%s?(.*)$")
@@ -136,7 +145,18 @@ local function cell_content(td)
   if td.kind == "tag_inline" then
     return inlines.read(cell_text(td))
   end
-  return pandoc.utils.blocks_to_inlines(children_of(td))
+  local kids = children_of(td)
+  -- blocks_to_inlines keeps the text but discards the block wrapper, so a
+  -- list or a nested table inside a cell loses its structure -- a genuine
+  -- drop per Sec 8. The WRITE side already logs the identical drop (see the
+  -- Table handler in writer/blocks.lua); logging it here too keeps one
+  -- construct from being loud in one direction and silent in the other.
+  for _, b in ipairs(kids) do
+    if b.t ~= "Plain" and b.t ~= "Para" then
+      pandoc.log.info("Not rendering " .. b.t .. " inside table cell")
+    end
+  end
+  return pandoc.utils.blocks_to_inlines(kids)
 end
 
 -- Build one <table> node into a native pandoc Table/Row/Cell. A
@@ -263,6 +283,15 @@ local function block_for(node)
 
   local text = node.text
 
+  -- A KNOWN tag that reaches here is one no branch above claimed: a table
+  -- structure tag (<td>, <tr>, <col>, <colgroup>) stray outside a real
+  -- <table>. leaf_text() deliberately keeps such a node's text VERBATIM, so
+  -- its attribute list is already present, literally, in the text below --
+  -- applying node.attrs a second time (via wrap(), or on the children Div)
+  -- double-emits them as a stray trailing `{…}`, the same bug the standalone
+  -- mention branch above guards against.
+  local verbatim = kind == "tag_open" or kind == "self_closing" or kind == "tag_inline"
+
   if text == "---" then
     -- HorizontalRule has no Attr slot, so a divider color is genuinely
     -- dropped, not merely degraded -- log it per spec §8, same tier as
@@ -314,8 +343,9 @@ local function block_for(node)
   if #node.children > 0 then
     local kids = pandoc.Blocks({ para })
     for _, b in ipairs(children_of(node)) do kids:insert(b) end
-    return pandoc.Div(kids, attr_of(node))
+    return pandoc.Div(kids, verbatim and pandoc.Attr() or attr_of(node))
   end
+  if verbatim then return para end
   return wrap(para, node)
 end
 
@@ -478,7 +508,9 @@ end
 -- batch -- paying a wasted priming read AND a per-chunk read for every
 -- other line in the document. Such a chunk parses to nothing anyway, so
 -- priming it is pure downside; gather() drops it instead of collecting it.
-local function is_blank(text) return text:match("^%s*$") ~= nil end
+-- Deliberately the reader's OWN test (inlines.is_blank), not a second copy:
+-- what gather() skips and what inlines.read short-circuits must agree.
+local is_blank = inlines.is_blank
 
 -- Gather every leaf inline run in the tree so they can be parsed in one pass.
 -- leaf_text() is the same function block_for() itself uses to decide what to

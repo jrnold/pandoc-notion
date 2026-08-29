@@ -1,0 +1,1 @@
+[ Figure ( "" , [] , [ ( "color" , "blue" ) ] ) (Caption Nothing [ Plain [ Str "A" , Space , Str "blue" , Space , Str "caption" ] ]) [ Plain [ Image ( "" , [] , [] ) [ Str "A" , Space , Str "blue" , Space , Str "caption" ] ( "https://example.com/i.png" , "" ) ] ] ]

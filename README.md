@@ -71,6 +71,13 @@ This limitation is pinned by `tests/corpus/adversarial/tab-in-fence.nfm` and
 literal tab or a run of `--tab-stop` spaces (default 4), matching pandoc's
 own convention for that flag.
 
+**An attribute value containing a literal `>` breaks tag parsing.** Tag
+scanning ends an opening tag at the first `>`, so
+`<callout icon="a>b">hi</callout>` is read as a `<callout>` whose body is
+`b">hi`, and the `icon` is lost. No realistic NFM attribute value (a colour
+name, a URL, a date, an emoji) contains `>`, so this is documented rather
+than worked around.
+
 ## Lossy conversion
 
 Constructs Notion cannot express are degraded deterministically and silently,

@@ -21,24 +21,17 @@ local function attr_suffix(attributes)
 end
 
 -- Same attribute list, formatted for inside a tag's `< >` rather than as a
--- trailing `{…}` prose suffix: `attr.render` gives ` {k="v"}`; this strips
--- the braces (keeping the leading space) so callers can write `<tag k="v">`.
-local function tag_attrs(a, order)
-  return attr.render(a, order):gsub("^ {", " "):gsub("}$", "")
-end
+-- trailing `{…}` prose suffix. One shared definition (attr.tag_attrs), so it
+-- cannot drift from writer/inlines.lua's copy of the same idea.
+local tag_attrs = attr.tag_attrs
 
 local function tag_attrs_of(attributes)
-  local a, order = attr.from_attr(attributes)
-  if #order == 0 then return "" end
-  return tag_attrs(a, order)
+  return tag_attrs(attr.from_attr(attributes))
 end
 
--- The tag name a raw HTML fragment opens, closes, or self-closes as -- used
--- only to decide whether it is in NFM's closed vocabulary, per raw_tag in
--- reader/inlines.lua.
-local function html_tag_name(text)
-  return text:match("^</([%w_%-]+)>%s*$") or text:match("^<([%w_%-]+)[%s/>]")
-end
+-- Same test writer/inlines.lua applies to a RawInline; imported rather than
+-- copied so the two can never disagree about NFM's closed tag vocabulary.
+local html_tag_name = inl.html_tag_name
 
 -- Render a tag block. Two shapes, matching what reader/tree.lua's tag_kind
 -- can actually parse back:
@@ -49,9 +42,7 @@ end
 --     the container form for, say, <page>, produces a tag_open the reader can
 --     never close, corrupting the very next read.
 local function tag_block(tag, def, el, depth)
-  local a, order = attr.from_attr(el.attributes)
-  if #order == 0 then order = def.attrs end
-  local body = tag_attrs(a, order)
+  local body = tag_attrs_of(el.attributes)
   local open = "<" .. tag .. body
   if def.void then return tabs(depth) .. open .. "/>" end
   if not schema.CONTAINERS[tag] then
@@ -143,6 +134,16 @@ local handlers = {
     if el.level > 4 then
       pandoc.log.info("Not rendering heading level " .. el.level .. " (NFM only has levels 1-4)")
     end
+    -- NFM headings carry an attribute list only -- there is no `{#id}` or
+    -- `{.class}` syntax -- so an identifier or class is a genuine drop (Sec 8).
+    if el.identifier ~= "" then
+      pandoc.log.info('Not rendering heading identifier "' .. el.identifier
+                      .. '" (NFM headings have no identifier)')
+    end
+    if #el.classes > 0 then
+      pandoc.log.info('Not rendering heading class "' .. el.classes[1]
+                      .. '" (NFM headings have no classes)')
+    end
     return tabs(d) .. string.rep("#", math.min(el.level, 4)) .. " "
            .. inl.render(el.content) .. attr_suffix(el.attributes)
   end,
@@ -157,6 +158,12 @@ local handlers = {
 
   CodeBlock = function(el, d)
     local lang = el.classes[1] or ""
+    -- A fence info string holds one language, so any further class (e.g.
+    -- pandoc's `.numberLines`) has nowhere to go: a genuine drop (Sec 8).
+    for i = 2, #el.classes do
+      pandoc.log.info('Not rendering code block class "' .. el.classes[i]
+                      .. '" (an NFM fence info string holds one language)')
+    end
     local suffix = attr_suffix(el.attributes)
     local body = {}
     for line in (el.text .. "\n"):gmatch("(.-)\n") do body[#body + 1] = tabs(d) .. line end
@@ -185,10 +192,20 @@ local handlers = {
     end
     local src = ""
     pandoc.walk_block(el, { Image = function(i) src = i.src end })
-    return tabs(d) .. "![" .. caption .. "](" .. src .. ")"
+    -- The attribute suffix is NOT optional here: reader/blocks.lua builds a
+    -- standalone `![Cap](URL)` into a Figure carrying the line's own `{…}`
+    -- attributes (spec Sec 4.3), exactly as the media branch above does, so
+    -- omitting it silently loses e.g. a colour on the way back out.
+    return tabs(d) .. "![" .. caption .. "](" .. src .. ")" .. attr_suffix(el.attributes)
   end,
 
   Table = function(el, d)
+    -- NFM's <table> has no caption element at all, so a Caption is a genuine
+    -- drop rather than an approximation (Sec 8).
+    if #(el.caption.long or {}) > 0 then
+      pandoc.log.info("Not rendering table caption (NFM tables have no caption)")
+    end
+
     -- Table cells hold rich text only; block content in a cell is a true drop.
     local rows = {}
     local function emit_rows(section)
@@ -235,8 +252,11 @@ local handlers = {
       out_order[#out_order + 1] = k
     end
 
-    return tabs(d) .. "<table" .. tag_attrs(out_pairs, out_order)
-           .. ">\n" .. table.concat(rows, "\n") .. "\n" .. tabs(d) .. "</table>"
+    local open = tabs(d) .. "<table" .. tag_attrs(out_pairs, out_order) .. ">"
+    -- A table with no <tr> at all would otherwise get a blank line between
+    -- its tags from the empty table.concat below.
+    if #rows == 0 then return open .. "</table>" end
+    return open .. "\n" .. table.concat(rows, "\n") .. "\n" .. tabs(d) .. "</table>"
   end,
 
   DefinitionList = function(el, d)

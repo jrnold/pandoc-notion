@@ -97,3 +97,34 @@ t.eq(out({ pandoc.RawBlock("html", "<div>x</div>") }), "",
 local note = out({ pandoc.Para({ pandoc.Str("x"),
   pandoc.Note({ pandoc.Para({ pandoc.Str("body") }) }) }) })
 t.eq(note, "x[1]\n[1] body", "footnote marker is unescaped and matches the endnote label")
+
+-- Bug fix: the NON-MEDIA Figure branch (a standalone `![Cap](URL)`) never
+-- emitted its attribute suffix, so a Figure the reader had correctly built
+-- from `![Cap](URL) {color="blue"}` wrote back out with the colour gone --
+-- silently, no log. Media Figures (<video>, <pdf>, …) always kept theirs, so
+-- this was an asymmetry inside our own AST convention, not an NFM limit.
+local function figure(attrs)
+  return pandoc.Figure(
+    pandoc.Blocks({ pandoc.Plain({ pandoc.Image({ pandoc.Str("Cap") }, "http://u") }) }),
+    pandoc.Caption(pandoc.Blocks({ pandoc.Plain({ pandoc.Str("Cap") }) })),
+    pandoc.Attr("", {}, attrs))
+end
+
+t.eq(out({ figure({}) }), "![Cap](http://u)",
+     "a plain standalone image is unchanged")
+t.eq(out({ figure({ color = "blue" }) }), '![Cap](http://u) {color="blue"}',
+     "a standalone image keeps its attributes")
+
+-- and a media Figure still keeps its own, unchanged
+t.eq(out({ pandoc.Figure(
+      pandoc.Blocks({ pandoc.Plain({ pandoc.Link({ pandoc.Str("V") }, "http://v") }) }),
+      pandoc.Caption(pandoc.Blocks({ pandoc.Plain({ pandoc.Str("V") }) })),
+      pandoc.Attr("", { "video" }, { color = "blue" })) }),
+     '<video src="http://v" color="blue">V</video>', "media Figure unchanged")
+
+-- A <table> with no rows writes as one line, not with a blank line wedged
+-- between its tags by an empty table.concat.
+t.eq(out({ pandoc.Table(pandoc.Caption({}), {}, pandoc.TableHead({}, pandoc.Attr()),
+                        { pandoc.TableBody({}, {}, 0, pandoc.Attr()) },
+                        pandoc.TableFoot({}, pandoc.Attr()), pandoc.Attr()) }),
+     "<table></table>", "an empty table has no blank line between its tags")

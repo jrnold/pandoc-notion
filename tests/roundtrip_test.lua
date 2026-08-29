@@ -48,7 +48,7 @@ for name in pairs(KNOWN_NOT_BYTE_IDENTICAL) do
     .. " but no such fixture exists on disk")
 end
 
-t.eq(count, 44, "corpus has exactly 44 fixtures, found " .. count)
+t.eq(count, 45, "corpus has exactly 45 fixtures, found " .. count)
 
 -- Official fixtures are transcribed verbatim from Notion's documentation, so
 -- their formatting is not ours to control. Assert STABILITY (f(f(x)) == f(x))

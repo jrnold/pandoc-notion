@@ -114,10 +114,16 @@ end
 -- pandoc.read("", M.EXTENSIONS) and pandoc.read("   ", M.EXTENSIONS) both
 -- yield #doc.blocks == 0, regardless of extensions), so its Inlines result
 -- is always empty too. M.read short-circuits it rather than spending a
--- pandoc.read call to learn what is already known -- this is what makes a
--- blank chunk gather() skipped from priming (see blocks.lua's is_blank) NOT
--- cost the document an extra per-chunk read to resolve.
-local function is_blank(text) return text:match("^%s*$") ~= nil end
+-- pandoc.read call to learn what is already known.
+--
+-- Exported because reader/blocks.lua's gather() must use the SAME test to
+-- decide what NOT to prime: a chunk gather() skips but M.read does not
+-- short-circuit would cost the document an extra per-chunk read, and a
+-- chunk M.read short-circuits but gather() primes would desync M.prime's
+-- block-count guard and discard the whole batch. The two are a coupled
+-- contract, so there is one definition rather than two that can drift.
+function M.is_blank(text) return text:match("^%s*$") ~= nil end
+local is_blank = M.is_blank
 
 local cache = {}
 

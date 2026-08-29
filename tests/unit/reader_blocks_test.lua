@@ -224,3 +224,30 @@ t.truthy(native('Hi <mention-user url="https://notion.so/u">Ada</mention-user> t
 -- control case: a genuinely attributed paragraph must still get its wrapper
 has('Hello {color="blue"}', "Div", "an attributed (non-mention) paragraph still gets wrapped")
 has('Hello {color="blue"}', '"color" , "blue"', "...and still carries its color")
+
+-- Same double-emission class, second instance: a TABLE STRUCTURE tag reached
+-- OUTSIDE a real <table> is not a cell, so leaf_text keeps its text verbatim
+-- (attribute list and all) and it recovers as literal prose. Before the fix,
+-- block_for ALSO wrapped that Para in an attribute Div carrying node.attrs,
+-- so the round-trip emitted the attributes twice:
+--     \<td color="red"\>x\</td\> {color="red"}
+local STRAY_TABLE_TAGS = {
+  { name = "td",  line = '<td color="red">x</td>' },
+  { name = "tr",  line = '<tr color="red">x</tr>' },
+  { name = "col", line = '<col color="red"/>' },
+}
+
+for _, s in ipairs(STRAY_TABLE_TAGS) do
+  local n = native(s.line)
+  t.truthy(n:find('"color"', 1, true) == nil,
+           s.name .. ": a stray table tag carries no separate Attr (text is verbatim)")
+  t.truthy(n:find("Div", 1, true) == nil,
+           s.name .. ": a stray table tag gets no attribute Div wrapper")
+
+  local out = pandoc.pipe("pandoc",
+    { "-f", "./notion-markdown-reader.lua", "-t", "./notion-markdown-writer.lua" }, s.line)
+  t.truthy(out:find(' {color="red"}', 1, true) == nil,
+           s.name .. ": round-trip does not double-emit the attributes")
+  t.truthy(out:find('color="red"', 1, true) ~= nil,
+           s.name .. ": ...but the verbatim text still carries them once")
+end
