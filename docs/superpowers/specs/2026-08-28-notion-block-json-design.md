@@ -33,9 +33,10 @@ conversion falls out of piping through pandoc, with no additional mapping code.
 
 - Any Notion API client. These are pandoc readers and writers; fetching,
   hydrating, chunking, and pushing content is the caller's job.
-- Enforcement of Notion's API limits. See §8.4 — this is a deliberate decision,
+- Enforcement of Notion's API limits. See §8.2 — this is a deliberate decision,
   not an omission.
-- Writing page properties. `Meta` is read-only; see §4.6.
+- Writing page properties. `Meta` is read-only in this version; see §4.6, and
+  §12.2 for the planned direction.
 - Notion database *schemas* (the definition of a database's columns, as opposed
   to a page's property values).
 
@@ -207,7 +208,7 @@ payload). Verifying against a live API call is recorded as follow-up work.
 100 block children per append request; two levels of nesting per request;
 `text.content` ≤ 2000 characters; `equation.expression` ≤ 1000; URLs ≤ 2000;
 `rich_text` arrays ≤ 100 elements. None of these are enforced by this project;
-see §8.4.
+see §8.2.
 
 ## 4. The AST convention
 
@@ -341,10 +342,13 @@ kind a future API version adds, with no code change.
 
 ### 4.6 Page properties → `Meta`
 
-Read direction only. The writer ignores `Meta` entirely and emits a bare block
-array, because property *writes* must validate against a database schema — a
-`select` value must already exist as an option — which is squarely the API
-client's responsibility under §8.4.
+Read direction only **in this version**. The writer ignores `Meta` entirely and
+emits a bare block array, because property *writes* must validate against a
+database schema — a `select` value must already exist as an option — which is
+squarely the API client's responsibility under §8.2.
+
+This is a deferral, not a permanent boundary. Property writes are planned; see
+§12.2 for the intended direction and the constraint that makes it non-trivial.
 
 | property type | `Meta` value |
 |---|---|
@@ -650,7 +654,7 @@ tests/corpus/json/
 | `has_children` without children is INFO, not error or class | It is ordinary unhydrated output; a class would leak a fetch artifact into every format |
 | `decode` nil check, not `pcall` | `pandoc.json.decode` never raises (§2.3) |
 | No API-limit enforcement | Output is a forgiving superset; the uploader owns chunking |
-| `Meta` is read-only | Property writes need a database schema to validate against |
+| `Meta` is read-only *for now* | Property writes need a database schema to validate against; deferred, not foreclosed (§12.2) |
 | Cross-pair round trip as the flagship test | Directly asserts the shared-AST payoff both specs were written for |
 
 ## 11. Success criteria
@@ -670,8 +674,37 @@ tests/corpus/json/
 
 ## 12. Follow-up work
 
-- Verify the §3.4 children-placement ambiguity against a live API call and, if
-  the documented position is wrong, correct the writer and record the finding
-  here.
-- Confirm whether `mention-data-source` and `mention-agent` (§4.5) exist in the
-  current API under names the documentation does not list.
+### 12.1 Deferred verification
+
+Neither item blocks implementation. Both are recorded here so that a later
+finding lands against a written expectation rather than a memory.
+
+- **Children placement (§3.4).** Verify against a live API call which position
+  Notion actually accepts. Until then the reader accepts both positions and the
+  writer emits the one the prose documents (inside the type payload). If the
+  live behaviour contradicts that, only the writer needs correcting — the
+  reader is already tolerant by construction — and the finding should be
+  recorded in §3.4.
+- **Mention kinds (§4.5).** Confirm whether `mention-data-source` and
+  `mention-agent` exist in the current API under names the documentation does
+  not list. The generic `mention-<kind>` fallback means a positive finding
+  requires no code change, only a golden fixture.
+
+### 12.2 Deferred features
+
+- **Writing page properties.** `Meta` is read-only in this version (§4.6). The
+  intended future direction is for the writer to emit a page object with a
+  `properties` map when `Meta` is populated, rather than a bare block array.
+
+  What makes this more than a mapping exercise is validation: a `select` or
+  `status` value must already exist as an option on the target database, and a
+  `relation` must reference real page ids, so the writer cannot know whether a
+  given `Meta` value is legal without the database schema. Two shapes are worth
+  considering when it is picked up — emitting properties unvalidated, consistent
+  with the forgiving-superset stance of §8.2 and leaving rejection to the API;
+  or accepting an optional schema so the writer can fail early. The first is
+  more consistent with everything else here.
+
+  Nothing in the current design forecloses either: `props.lua` already owns the
+  per-type mapping table, and adding the write direction to it mirrors what
+  `richtext.lua` does for rich text.
