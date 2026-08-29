@@ -148,4 +148,144 @@ function M.to_inlines(rich_text)
   return pandoc.Inlines(out)
 end
 
+-- ---------------------------------------------------------------------------
+-- Write direction: nested tree -> flat runs.
+--
+-- The tree is walked with the annotation set inherited downward; one segment
+-- is emitted per leaf, and adjacent leaves sharing a state merge. This
+-- direction is MANY-TO-ONE (Strong[Link[x]] and Link[Strong[x]] encode
+-- identically), which is why only from_inlines(to_inlines(x)) == x is asserted.
+-- ---------------------------------------------------------------------------
+
+local function new_state()
+  return { bold = false, italic = false, underline = false,
+           strikethrough = false, code = false, color = nil, href = nil }
+end
+
+local function derive(st, key, value)
+  local copy = {}
+  for k, v in pairs(st) do copy[k] = v end
+  copy[key] = value
+  return copy
+end
+
+local function annotations_for(st)
+  return {
+    bold          = st.bold,
+    italic        = st.italic,
+    strikethrough = st.strikethrough,
+    underline     = st.underline,
+    code          = st.code,
+    color         = json.color_to_notion(st.color),
+  }
+end
+
+local function state_identity(st)
+  return table.concat({
+    tostring(st.bold), tostring(st.italic), tostring(st.underline),
+    tostring(st.strikethrough), tostring(st.code),
+    tostring(st.color or ""), tostring(st.href or ""),
+  }, "\1")
+end
+
+function M.from_inlines(inlines)
+  local out  = json.arr()
+  local meta = {}   -- parallel bookkeeping: identity + mergeability per entry
+
+  local function emit_text(s, st)
+    if s == "" then return end
+    local id   = state_identity(st)
+    local last = out[#out]
+    if last and meta[#out] and meta[#out].mergeable and meta[#out].identity == id then
+      last.text.content = last.text.content .. s
+      last.plain_text   = last.text.content
+      return
+    end
+    out:insert(json.obj({
+      type = "text",
+      text = json.obj({
+        content = s,
+        link    = st.href and json.obj({ url = st.href }) or nil,
+      }),
+      annotations = json.obj(annotations_for(st)),
+      plain_text  = s,
+      href        = st.href,
+    }))
+    meta[#out] = { identity = id, mergeable = true }
+  end
+
+  local function emit_atom(entry, st)
+    out:insert(entry)
+    meta[#out] = { identity = state_identity(st), mergeable = false }
+  end
+
+  local walk
+
+  local function walk_span(el, st)
+    local classes = el.classes or {}
+    local is_mention = false
+    local kind
+    for _, c in ipairs(classes) do
+      if c == "mention" then is_mention = true end
+      local m = tostring(c):match("^mention%-(.+)$")
+      if m then kind = m:gsub("%-", "_") end
+    end
+    if is_mention and kind then
+      local payload = json.obj({})
+      local url = el.attributes.url
+      if kind == "date" then
+        if el.attributes.start then payload.start = el.attributes.start end
+        if el.attributes["end"] then payload["end"] = el.attributes["end"] end
+      elseif url then
+        payload.id = url
+        payload.url = url
+      end
+      emit_atom(json.obj({
+        type = "mention",
+        mention = json.obj({ type = kind, [kind] = payload }),
+        annotations = json.obj(annotations_for(st)),
+        plain_text  = pandoc.utils.stringify(el),
+        href        = st.href,
+      }), st)
+      return
+    end
+    local color = el.attributes and el.attributes.color
+    walk(el.content, color and derive(st, "color", color) or st)
+  end
+
+  walk = function(ins, st)
+    for _, el in ipairs(ins or {}) do
+      local tag = el.t
+      if     tag == "Str"       then emit_text(el.text, st)
+      elseif tag == "Space"     then emit_text(" ", st)
+      elseif tag == "SoftBreak" then emit_text(" ", st)
+      elseif tag == "LineBreak" then emit_text("\n", st)
+      elseif tag == "Strong"    then walk(el.content, derive(st, "bold", true))
+      elseif tag == "Emph"      then walk(el.content, derive(st, "italic", true))
+      elseif tag == "Underline" then walk(el.content, derive(st, "underline", true))
+      elseif tag == "Strikeout" then walk(el.content, derive(st, "strikethrough", true))
+      elseif tag == "Code"      then emit_text(el.text, derive(st, "code", true))
+      elseif tag == "Link"      then walk(el.content, derive(st, "href", el.target))
+      elseif tag == "Span"      then walk_span(el, st)
+      elseif tag == "Math"      then
+        emit_atom(json.obj({
+          type = "equation",
+          equation = json.obj({ expression = el.text }),
+          annotations = json.obj(annotations_for(st)),
+          plain_text  = el.text,
+          href        = st.href,
+        }), st)
+      elseif el.content then
+        -- Defined default: walk transparently. Task 11 replaces this with the
+        -- documented lossy fallbacks for SmallCaps, Super/Subscript, Note,
+        -- Quoted, Cite, RawInline and Image.
+        walk(el.content, st)
+      end
+    end
+  end
+
+  walk(inlines, new_state())
+  return out
+end
+
 return M
