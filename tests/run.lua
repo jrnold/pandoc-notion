@@ -23,6 +23,7 @@ local suites = {
   "completeness_test",
   "degrade_test",
   "golden_test",
+  "unit.batching_test",
 }
 
 for _, s in ipairs(suites) do require(s) end

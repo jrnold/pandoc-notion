@@ -14,5 +14,5 @@ local blocks = require "notion.reader.blocks"
 -- tab-indented document would have. opts.tab_stop is threaded straight
 -- through to tree.parse.
 function Reader(input, opts)
-  return pandoc.Pandoc(blocks.convert(tree.parse(tostring(input), opts.tab_stop)))
+  return pandoc.Pandoc(blocks.convert_document(tree.parse(tostring(input), opts.tab_stop)))
 end

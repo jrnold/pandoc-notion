@@ -297,5 +297,25 @@ convert = function(nodes)
   return out
 end
 
+-- Gather every leaf inline run in the tree so they can be parsed in one pass.
+local function gather(nodes, acc)
+  for _, node in ipairs(nodes) do
+    if node.kind ~= "code" then
+      local _, content = nil, nil
+      if node.kind == "text" then _, content = list_item(node.text) end
+      acc[#acc + 1] = content or node.text
+    end
+    gather(node.children, acc)
+  end
+  return acc
+end
+
+-- Entry point used by the reader: prime the inline cache, then convert.
+function M.convert_document(nodes)
+  inlines.reset()
+  inlines.prime(gather(nodes, {}))
+  return convert(nodes)
+end
+
 M.convert = convert
 return M

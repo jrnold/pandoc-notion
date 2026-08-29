@@ -110,10 +110,42 @@ local function trim_leading(text)
   return text:gsub("^[ \t]+", "")
 end
 
+local cache = {}
+
+function M.reset() cache = {} end
+
+-- Parse many inline runs in ONE pandoc.read. Chunks are joined with a blank
+-- line so pandoc keeps them as separate Paras, then mapped back positionally.
+-- If the block count does not match, the batch is discarded entirely and the
+-- per-chunk path is used, so correctness never depends on this working.
+function M.prime(texts)
+  if #texts == 0 then return end
+  local joined = {}
+  for i, text in ipairs(texts) do joined[i] = trim_leading(text) end
+  local doc = pandoc.read(table.concat(joined, "\n\n"), M.EXTENSIONS)
+  if #doc.blocks ~= #texts then return end     -- misaligned: fall back silently
+  for i, text in ipairs(texts) do
+    -- blocks_to_inlines, not block.content directly: a chunk that pandoc
+    -- reparses as something other than a single Para (e.g. "> quoted
+    -- looking" becoming a BlockQuote) still has SOME single block at this
+    -- position, keeping the batch's block count aligned with #texts, but
+    -- its .content is Blocks rather than Inlines for non-Para/Plain types.
+    -- Routing every block through blocks_to_inlines -- the same call the
+    -- per-chunk path below uses -- flattens it correctly regardless of
+    -- block type instead of caching a type-mismatched value.
+    local ils = pandoc.utils.blocks_to_inlines({ doc.blocks[i] })
+    cache[text] = fold_citations(M.fold(ils))
+  end
+end
+
 function M.read(text)
+  local hit = cache[text]
+  if hit then return hit end
   local doc = pandoc.read(trim_leading(text), M.EXTENSIONS)
   local ils = pandoc.utils.blocks_to_inlines(doc.blocks)
-  return fold_citations(M.fold(ils))
+  local result = fold_citations(M.fold(ils))
+  cache[text] = result
+  return result
 end
 
 return M
