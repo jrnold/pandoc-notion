@@ -117,8 +117,11 @@ function M.to_inlines(rich_text)
   local runs = {}
   for _, rt in ipairs(rich_text) do
     local a       = annotations_of(rt)
-    local href    = href_of(rt)
     local kind    = json.get(rt, "type")
+    -- href produces a Link only for text runs: mentions carry their URL in
+    -- the Span's own url attribute (Link[mention] isn't valid NFM, and would
+    -- duplicate the URL), and equations have no link semantics.
+    local href    = (kind == "text" or kind == nil) and href_of(rt) or nil
     local id      = identity(a, href)
     local content = ""
     if kind == "text" or kind == nil then

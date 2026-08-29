@@ -114,6 +114,26 @@ t.eq(native(rt.to_inlines({ {
      } })),
      native({ pandoc.Str("x") }), "null link does not produce a Link")
 
+-- A mention carrying a top-level href must NOT be wrapped in a Link: its URL
+-- already lives in the Span's url attribute, and Link[mention] is not
+-- expressible in NFM, which would break the cross-pair round trip.
+local href_mention = rt.to_inlines({ {
+  type = "mention",
+  mention = { type = "page", page = { id = "p-1" } },
+  annotations = {}, plain_text = "Ada", href = "https://notion.so/p",
+} })
+t.eq(href_mention[1].t, "Span", "a mention with an href stays a bare Span")
+t.eq(href_mention[1].classes, pandoc.List({ "mention", "mention-page" }),
+     "and keeps both mention classes")
+
+-- Same annotations but different link targets must not coalesce. identity()
+-- already folds href into the key; this pins the behaviour.
+local two_links = rt.to_inlines({
+  seg("a", { bold = true }, "https://one.example"),
+  seg("b", { bold = true }, "https://two.example"),
+})
+t.eq(#two_links, 2, "runs with different hrefs do not coalesce")
+
 -- Empty input.
 t.eq(#rt.to_inlines({}), 0, "empty rich_text yields no inlines")
 t.eq(#rt.to_inlines(nil), 0, "absent rich_text yields no inlines")
