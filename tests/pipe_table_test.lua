@@ -45,3 +45,43 @@ local mention_row = table.concat({
 local mention_out = nfm.to_nfm(mention_row):gsub("\n$", "")
 t.truthy(mention_out:find('<mention-user url="u">Ada</mention-user>', 1, true) ~= nil,
   "a mention inside a pipe-table cell folds instead of being dropped")
+
+-- pandoc's own pipe-tables grammar does not REJECT a delimiter row that
+-- under-specifies columns relative to the header/data rows -- it silently
+-- narrows the whole table to match the delimiter, dropping the extra
+-- columns with no error and no [INFO]. pipe_table_run guards against this
+-- by comparing the parsed table's column count against the widest column
+-- count any source line implies, and falling back to ordinary paragraphs
+-- when the table came out narrower. The assertion that matters is that
+-- BOTH the dropped column's header ("B") and the dropped cell ("2")
+-- survive in the fallback output -- a test that only checked "it didn't
+-- crash" would have passed even with the data silently gone.
+local truncated_path = nfm.ROOT .. "/tests/corpus/adversarial/pipe-table-truncated-delimiter.nfm"
+local truncated_src  = nfm.read_file(truncated_path):gsub("\n$", "")
+
+local truncated_once = nfm.to_nfm(truncated_src):gsub("\n$", "")
+t.eq(truncated_once, "\\| A \\| B \\|\n\\|--\n\\| 1 \\| 2 \\|",
+  "a delimiter row narrower than the header falls back to paragraphs, not a truncated table")
+t.truthy(truncated_once:find("B", 1, true) ~= nil, "the dropped column header (\"B\") survives")
+t.truthy(truncated_once:find("2", 1, true) ~= nil, "the dropped cell (\"2\") survives")
+
+-- Control: an ordinary well-formed `|---|---|` delimiter still parses as a
+-- real Table -- the fix above must not make the reader newly distrustful
+-- of valid tables.
+local control_once = nfm.to_nfm(pipe_src):gsub("\n$", "")
+t.truthy(control_once:find("<table", 1, true) ~= nil,
+  "a well-formed delimiter row still parses as <table> (no regression)")
+
+-- A delimiter row that OVER-specifies columns relative to the header does
+-- NOT lose data -- pandoc pads the header's missing trailing cell instead
+-- of dropping anything -- so it must still parse as a Table with every
+-- value intact, not fall back.
+local wide_delim = table.concat({
+  "| A | B |", "|---|---|---|", "| 1 | 2 | 3 |", "" }, "\n")
+local wide_once = nfm.to_nfm(wide_delim):gsub("\n$", "")
+t.truthy(wide_once:find("<table", 1, true) ~= nil,
+  "a delimiter row wider than the header still parses as <table>")
+for _, want in ipairs({ "A", "B", "1", "2", "3" }) do
+  t.truthy(wide_once:find(">" .. want .. "<", 1, true) ~= nil,
+    "a wide delimiter row keeps every value, including \"" .. want .. "\"")
+end

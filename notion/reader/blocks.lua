@@ -355,6 +355,18 @@ local function fold_pipe_cell(ils)
   return inlines.read((text:gsub("\n+$", "")))
 end
 
+-- A rough, non-escape-aware upper bound on how many cells a pipe-table
+-- source LINE declares: count the "|" characters after stripping one
+-- optional leading and trailing "|", plus one. Used only to detect the
+-- truncation pipe_table_run below guards against -- never to extract
+-- actual cell text (fold_pipe_cell above, via pandoc's own cell split,
+-- remains the single source of truth for that).
+local function naive_cell_count(line)
+  local s = line:match("^%s*(.-)%s*$"):gsub("^|", ""):gsub("|$", "")
+  local _, n = s:gsub("|", "|")
+  return n + 1
+end
+
 -- Detect and parse a run of consecutive `text` nodes that form a markdown
 -- PIPE table (`| A | B |` / `|---|---|` / `| 1 | 2 |`) -- Notion's own
 -- "Complete example" on the enhanced-markdown page uses this syntax
@@ -386,6 +398,31 @@ local function pipe_table_run(nodes, i)
   end
 
   local tbl = doc.blocks[1]
+
+  -- pandoc's pipe-tables grammar treats a delimiter row that
+  -- UNDER-specifies columns relative to the header/data rows as valid --
+  -- it silently narrows the whole table to match the delimiter instead of
+  -- rejecting it, which drops entire columns of real content with no error
+  -- and no [INFO]. Detect that by comparing the table's actual column
+  -- count against the widest column count any non-delimiter source line
+  -- implies (line 2 is always the delimiter row in a run pandoc has
+  -- already accepted as one Table); if the table came out narrower, the
+  -- parse lost data, so reject it and let the caller fall through to
+  -- ordinary paragraph handling -- lossless, if less pretty, exactly like
+  -- the not-a-table case above. A delimiter row that OVER-specifies
+  -- columns is fine: pandoc pads the shorter rows instead of dropping
+  -- anything, so no check is needed in that direction.
+  local max_cols = 0
+  for k = 1, #lines do
+    if k ~= 2 then
+      local n = naive_cell_count(lines[k])
+      if n > max_cols then max_cols = n end
+    end
+  end
+  if #tbl.colspecs < max_cols then
+    return nil
+  end
+
   local function fold_row(row)
     for _, cell in ipairs(row.cells) do
       cell.contents = pandoc.Blocks({

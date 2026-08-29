@@ -1,0 +1,1 @@
+[ Para [ Str "|" , Space , Str "A" , Space , Str "|" , Space , Str "B" , Space , Str "|" ] , Para [ Str "|--" ] , Para [ Str "|" , Space , Str "1" , Space , Str "|" , Space , Str "2" , Space , Str "|" ] ]
