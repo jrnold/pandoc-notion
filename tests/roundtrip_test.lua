@@ -10,8 +10,10 @@ local SUBDIRS = { "blocks", "inlines", "nesting", "adversarial" }
 -- starts round-tripping byte-identically, or a key that no longer names a
 -- fixture on disk, fails the suite loudly instead of staying green forever.
 local KNOWN_NOT_BYTE_IDENTICAL = {
-  ["tab-in-fence.nfm"]    = true,  -- see tests/tab_in_fence_test.lua
-  ["table-colgroup.nfm"]  = true,  -- see tests/colgroup_test.lua
+  ["tab-in-fence.nfm"]     = true,  -- see tests/tab_in_fence_test.lua
+  ["table-colgroup.nfm"]   = true,  -- see tests/colgroup_test.lua
+  ["table-pipe.nfm"]       = true,  -- see tests/pipe_table_test.lua: normalizes to <table>
+  ["pipe-not-table.nfm"]   = true,  -- see tests/pipe_table_test.lua: literal "|" gets escaped
 }
 
 local seen_names = {}
@@ -45,7 +47,7 @@ for name in pairs(KNOWN_NOT_BYTE_IDENTICAL) do
     .. " but no such fixture exists on disk")
 end
 
-t.eq(count, 41, "corpus has exactly 41 fixtures, found " .. count)
+t.eq(count, 43, "corpus has exactly 43 fixtures, found " .. count)
 
 -- Official fixtures are transcribed verbatim from Notion's documentation, so
 -- their formatting is not ours to control. Assert STABILITY (f(f(x)) == f(x))

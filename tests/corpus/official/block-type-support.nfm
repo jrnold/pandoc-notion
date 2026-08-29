@@ -18,6 +18,11 @@ Plain text paragraph
 </callout>
 ---
 $$a = b$$
+<table>
+	<tr>
+		<td>Cell</td>
+	</tr>
+</table>
 ![Image caption](https://example.com/i.png)
 <file src="https://example.com/f.zip">File</file>
 <video src="https://example.com/v.mp4">Video</video>

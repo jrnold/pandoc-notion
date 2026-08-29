@@ -32,4 +32,4 @@ for _, sub in ipairs(SUBDIRS) do
   end
 end
 
-t.eq(checked, 45, "every fixture has a golden, checked " .. checked)
+t.eq(checked, 47, "every fixture has a golden, checked " .. checked)

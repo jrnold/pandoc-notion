@@ -328,29 +328,108 @@ local function item_blocks(node)
   return body
 end
 
+-- Does this cell's already-parsed content contain any of NFM's own tags
+-- (<mention-*>, <span underline/color>, <br>)? pandoc.read (below) doesn't
+-- know that vocabulary, so it leaves it as unfolded RawInline("html", …)
+-- pairs rather than erroring -- this is the one signal that a cell needs
+-- the fold_pipe_cell round trip at all.
+local function cell_has_raw(ils)
+  for _, il in ipairs(ils) do
+    if il.t == "RawInline" then return true end
+  end
+  return false
+end
+
+-- Fold NFM's raw-HTML tag vocabulary inside one pipe-table cell's Inlines.
+-- pandoc.read's own pipe_tables grammar already splits cells and parses
+-- ordinary markdown inside them correctly -- through the same M.EXTENSIONS
+-- inlines.read uses -- so the only gap is NFM's own tags, which arrive
+-- unfolded (see cell_has_raw). Writing the cell back out as
+-- markdown_strict+raw_html text and re-reading it through inlines.read
+-- reuses that fold/citation logic exactly instead of duplicating it here.
+-- Skipped entirely for the common case of a cell with no raw HTML at all.
+local function fold_pipe_cell(ils)
+  if not cell_has_raw(ils) then return ils end
+  local text = pandoc.write(pandoc.Pandoc(pandoc.Blocks({ pandoc.Plain(ils) })),
+                            "markdown_strict+raw_html")
+  return inlines.read((text:gsub("\n+$", "")))
+end
+
+-- Detect and parse a run of consecutive `text` nodes that form a markdown
+-- PIPE table (`| A | B |` / `|---|---|` / `| 1 | 2 |`) -- Notion's own
+-- "Complete example" on the enhanced-markdown page uses this syntax
+-- alongside the <table>/<tr>/<td> HTML form (spec §3; tests/corpus/official).
+-- Liberal on read, canonical on write: a pipe table normalizes to <table>
+-- when written back out, which is fine because byte-identity is already
+-- waived -- only stability is required.
+--
+-- pandoc.read is both the parser AND the well-formedness check here: a run
+-- of lines starting with "|" that is NOT a valid pipe table (a stray
+-- literal "|" in prose, a malformed row) parses to something other than a
+-- single Table block, so it returns nil and the caller falls through to
+-- ordinary per-line paragraph handling -- this must never crash and never
+-- silently swallow such a line.
+local function pipe_table_run(nodes, i)
+  if nodes[i].kind ~= "text" or not nodes[i].text:match("^|") then
+    return nil
+  end
+  local j = i
+  while j <= #nodes and nodes[j].kind == "text" and nodes[j].text:match("^|") do
+    j = j + 1
+  end
+  local lines = {}
+  for k = i, j - 1 do lines[#lines + 1] = nodes[k].text end
+
+  local ok, doc = pcall(pandoc.read, table.concat(lines, "\n"), inlines.EXTENSIONS)
+  if not ok or #doc.blocks ~= 1 or doc.blocks[1].t ~= "Table" then
+    return nil
+  end
+
+  local tbl = doc.blocks[1]
+  local function fold_row(row)
+    for _, cell in ipairs(row.cells) do
+      cell.contents = pandoc.Blocks({
+        pandoc.Plain(fold_pipe_cell(pandoc.utils.blocks_to_inlines(cell.contents))) })
+    end
+  end
+  for _, row in ipairs(tbl.head.rows) do fold_row(row) end
+  for _, body in ipairs(tbl.bodies) do
+    for _, row in ipairs(body.body) do fold_row(row) end
+  end
+
+  return tbl, j
+end
+
 convert = function(nodes)
   local out, i = pandoc.Blocks({}), 1
   while i <= #nodes do
     local node = nodes[i]
-    local kind = nil
-    if node.kind == "text" then kind = list_item(node.text) end
+    local pipe_table, after = pipe_table_run(nodes, i)
 
-    if kind then
-      -- gather the run of same-kind siblings into one list
-      local items, j = {}, i
-      while j <= #nodes do
-        local nk = nil
-        if nodes[j].kind == "text" then nk = list_item(nodes[j].text) end
-        if nk ~= kind then break end
-        items[#items + 1] = item_blocks(nodes[j])
-        j = j + 1
-      end
-      out:insert(kind == "bullet" and pandoc.BulletList(items)
-                                   or pandoc.OrderedList(items))
-      i = j
+    if pipe_table then
+      out:insert(pipe_table)
+      i = after
     else
-      out:insert(block_for(node))
-      i = i + 1
+      local kind = nil
+      if node.kind == "text" then kind = list_item(node.text) end
+
+      if kind then
+        -- gather the run of same-kind siblings into one list
+        local items, j = {}, i
+        while j <= #nodes do
+          local nk = nil
+          if nodes[j].kind == "text" then nk = list_item(nodes[j].text) end
+          if nk ~= kind then break end
+          items[#items + 1] = item_blocks(nodes[j])
+          j = j + 1
+        end
+        out:insert(kind == "bullet" and pandoc.BulletList(items)
+                                     or pandoc.OrderedList(items))
+        i = j
+      else
+        out:insert(block_for(node))
+        i = i + 1
+      end
     end
   end
   return out

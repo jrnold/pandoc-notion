@@ -11,6 +11,7 @@
 , Div ( "" , [ "callout" ] , [ ( "icon" , "i" ) ] ) [ Para [ Str "Callout" , Space , Str "text" ] ]
 , HorizontalRule
 , Para [ Math DisplayMath "a = b" ]
+, Table ( "" , [] , [] ) (Caption Nothing []) [ ( AlignDefault , ColWidthDefault ) ] (TableHead ( "" , [] , [] ) []) [ TableBody ( "" , [] , [] ) (RowHeadColumns 0) [] [ Row ( "" , [] , [] ) [ Cell ( "" , [] , [] ) AlignDefault (RowSpan 1) (ColSpan 1) [ Plain [ Str "Cell" ] ] ] ] ] (TableFoot ( "" , [] , [] ) [])
 , Figure ( "" , [] , [] ) (Caption Nothing [ Plain [ Str "Image" , Space , Str "caption" ] ]) [ Plain [ Image ( "" , [] , [] ) [ Str "Image" , Space , Str "caption" ] ( "https://example.com/i.png" , "" ) ] ]
 , Figure ( "" , [ "file" ] , [] ) (Caption Nothing [ Plain [ Str "File" ] ]) [ Plain [ Link ( "" , [] , [] ) [ Str "File" ] ( "https://example.com/f.zip" , "" ) ] ]
 , Figure ( "" , [ "video" ] , [] ) (Caption Nothing [ Plain [ Str "Video" ] ]) [ Plain [ Link ( "" , [] , [] ) [ Str "Video" ] ( "https://example.com/v.mp4" , "" ) ] ]
