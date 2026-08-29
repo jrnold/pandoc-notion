@@ -140,7 +140,11 @@ end
 
 function M.read(text)
   local hit = cache[text]
-  if hit then return hit end
+  -- Return a clone, not the cached object itself: two reads of identical
+  -- text must not hand back the SAME Inlines table (rawequal), or a future
+  -- in-place mutation at one call site would silently corrupt every other
+  -- occurrence of that line that shares the cache entry.
+  if hit then return hit:clone() end
   local doc = pandoc.read(trim_leading(text), M.EXTENSIONS)
   local ils = pandoc.utils.blocks_to_inlines(doc.blocks)
   local result = fold_citations(M.fold(ils))

@@ -55,6 +55,14 @@ end
 -- further down BOTH call this -- neither recomputes its own prefix-
 -- stripping -- so the batching cache's priming key and the key block_for
 -- actually looks up can never drift apart the way they once did.
+--
+-- Deliberately NOT special-cased here: "td". Unlike every other tag, a
+-- <td>'s read text depends on CONTEXT, not on the node alone -- inside a
+-- real <table> it is a cell (see cell_text below); outside one it is not a
+-- cell at all, and per block_for()'s own fallthrough (a "td" tag matches
+-- none of TABLE_TAGS/BLOCK_TAGS/MEDIA_TAGS/MENTION_TAGS here) it must read
+-- like ordinary literal text, node.text unchanged, same as any other
+-- unrecognised tag.
 local function leaf_text(node)
   if node.kind == "code" then return nil end
 
@@ -65,17 +73,16 @@ local function leaf_text(node)
 
   if node.kind == "tag_open" or node.kind == "self_closing" or node.kind == "tag_inline" then
     local tag = node.tag
-    if tag == "td" then
-      return node.kind == "tag_inline" and inline_label(node.text) or nil
-    end
     if tag == "table" then return nil end
     if schema.BLOCK_TAGS[tag] then
       return node.kind == "tag_inline" and inline_label(node.text) or nil
     end
     if schema.MEDIA_TAGS[tag] then return inline_label(node.text) end
     if schema.MENTION_TAGS[tag] then return node.text end
-    -- unknown tag: fall through to the generic text-pattern handling below,
-    -- exactly as block_for()'s own fallthrough does for e.g. <unknown>.
+    -- unknown tag (this includes a stray "td", "tr", "colgroup", or "col"
+    -- reached outside a <table>): fall through to the generic text-pattern
+    -- handling below, exactly as block_for()'s own fallthrough does for
+    -- e.g. <unknown>.
   end
 
   local text = node.text
@@ -87,6 +94,17 @@ local function leaf_text(node)
   local quote = text:match("^>%s?(.*)$")
   if quote then return quote end
   return text
+end
+
+-- The read text for a <td> WHEN READ AS A TABLE CELL (see cell_content and
+-- table_block below, and gather()'s table-aware branch further down). This
+-- is the one carve-out from leaf_text being the single source of truth:
+-- whether a <td>'s tag wrapper is stripped depends on whether this node is
+-- actually being walked as part of a real <table>'s rows, which only the
+-- callers that do that walk can know.
+local function cell_text(td)
+  if td.kind == "tag_inline" then return inline_label(td.text) end
+  return nil
 end
 
 -- A <colgroup>/<col> color has no home in pandoc's Table model -- ColSpec is
@@ -116,7 +134,7 @@ end
 -- than kept as blocks -- the same flattening inlines.read itself does.
 local function cell_content(td)
   if td.kind == "tag_inline" then
-    return inlines.read(leaf_text(td))
+    return inlines.read(cell_text(td))
   end
   return pandoc.utils.blocks_to_inlines(children_of(td))
 end
@@ -341,12 +359,30 @@ end
 -- Gather every leaf inline run in the tree so they can be parsed in one pass.
 -- leaf_text() is the same function block_for() itself uses to decide what to
 -- hand to inlines.read(), so the primed cache key and the lookup key can
--- never disagree.
+-- never disagree -- except for a real <table>'s cells, whose read text is
+-- context-dependent (see cell_text above): a "table" node's rows are walked
+-- separately here, the same way table_block() walks them, using the
+-- matching cell_text() rather than leaf_text()'s context-free (and for
+-- "td", therefore wrong) fallback.
 local function gather(nodes, acc)
   for _, node in ipairs(nodes) do
-    local text = leaf_text(node)
-    if text then acc[#acc + 1] = text end
-    gather(node.children, acc)
+    if node.tag == "table" then
+      for _, tr in ipairs(node.children) do
+        if tr.tag == "tr" then
+          for _, td in ipairs(tr.children) do
+            if td.tag == "td" then
+              local text = cell_text(td)
+              if text then acc[#acc + 1] = text end
+              gather(td.children, acc)
+            end
+          end
+        end
+      end
+    else
+      local text = leaf_text(node)
+      if text then acc[#acc + 1] = text end
+      gather(node.children, acc)
+    end
   end
   return acc
 end

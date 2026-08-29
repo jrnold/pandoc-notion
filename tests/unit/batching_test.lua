@@ -198,3 +198,100 @@ do
   }, "\n")
   assert_one_read_and_identical_output(src, "code block + display math + paragraphs")
 end
+
+-- A real <table>'s cells are context-dependent (see cell_text in blocks.lua):
+-- <td> outside a <table> must read like ordinary text, so it cannot be
+-- covered by leaf_text() the way every other tag is. Confirm the carve-out
+-- didn't cost the batching win for actual tables, and that a stray <td>
+-- outside a table no longer crashes or silently changes output (this was
+-- CRITICAL 1 and CRITICAL 2 from the review of the first leaf_text cut).
+do
+  local tbl = table.concat({
+    "<table header-row=\"true\">",
+    "\t<tr>",
+    "\t\t<td>Name</td>",
+    "\t\t<td>Score</td>",
+    "\t</tr>",
+    "\t<tr>",
+    "\t\t<td>Alice **bold**</td>",
+    "\t\t<td>1</td>",
+    "\t</tr>",
+    "\t<tr>",
+    "\t\t<td>Bob</td>",
+    "\t\t<td>2 *em*</td>",
+    "\t</tr>",
+    "</table>",
+  }, "\n")
+  assert_one_read_and_identical_output(tbl, "table with 6 cells")
+
+  -- Multi-line (tag_open) td cell: its content is a CHILD node read through
+  -- the ordinary leaf_text/paragraph path, not cell_text -- confirm that
+  -- also still batches and matches.
+  local tbl_multiline = table.concat({
+    "<table>",
+    "\t<tr>",
+    "\t\t<td>",
+    "\t\t\tWrapped **cell** text",
+    "\t\t</td>",
+    "\t</tr>",
+    "</table>",
+  }, "\n")
+  assert_one_read_and_identical_output(tbl_multiline, "table with multi-line td cell")
+end
+
+do
+  -- Stray <td>, <td/>, <tr>, <colgroup>, <col> OUTSIDE a <table> are not
+  -- cells/rows/columns at all -- schema.TABLE_TAGS membership alone doesn't
+  -- make them one, only actually being walked as part of a real <table> by
+  -- table_block()/gather()'s table-aware branch does. Each must read as
+  -- ordinary literal text (block_for()'s own fallthrough for any
+  -- unrecognised-in-context tag), not crash, and not have its tag
+  -- wrapper stripped -- and gather() priming must not change that.
+  local stray_tags = {
+    "<td/>",
+    "<tr>Loose row text</tr>",
+    "<colgroup></colgroup>",
+    "<col/>",
+  }
+  for _, tag_line in ipairs(stray_tags) do
+    local src = table.concat({ "Before", tag_line, "After" }, "\n")
+    assert_one_read_and_identical_output(src, "stray " .. tag_line .. " outside a table")
+  end
+
+  -- Multi-line stray <td> (tag_open, with children) must parse without
+  -- error and keep its literal "<td>" tag text, exactly as before the
+  -- leaf_text refactor -- this is the exact CRITICAL 1 crash reproduction.
+  local stray_block_td = table.concat({ "Before", "<td>", "\tCell", "</td>", "After" }, "\n")
+  assert_one_read_and_identical_output(stray_block_td, "stray block <td> outside a table")
+  inlines.reset()
+  local native = pandoc.write(pandoc.Pandoc(blocks.convert_document(tree.parse(stray_block_td))), "native")
+  t.truthy(native:find('Str "<td>"', 1, true) ~= nil,
+           "stray block <td>'s opening tag survives as literal text, not stripped: " .. native)
+
+  -- Stray inline <td>Cell **b**</td> must keep the tag wrapper AND not
+  -- re-parse "**b**" as Strong -- this is the exact CRITICAL 2 output-
+  -- change reproduction (the buggy leaf_text stripped the tags and
+  -- re-parsed the inner markdown).
+  local stray_inline_td = table.concat({ "Before", "<td>Cell **b**</td>", "After" }, "\n")
+  assert_one_read_and_identical_output(stray_inline_td, "stray inline <td> outside a table")
+  inlines.reset()
+  local inline_native =
+    pandoc.write(pandoc.Pandoc(blocks.convert_document(tree.parse(stray_inline_td))), "native")
+  t.truthy(inline_native:find('Str "<td>Cell **b**</td>"', 1, true) ~= nil,
+           "stray inline <td> keeps its literal tag text and inner markdown unparsed: " .. inline_native)
+end
+
+-- inlines.read()'s cache must not hand back an aliased mutable object: two
+-- reads of identical text sharing a cache entry must be distinct tables, or
+-- a future in-place mutation at one call site would corrupt every other
+-- occurrence of that line.
+do
+  inlines.reset()
+  inlines.prime({ "shared text" })
+  local a = inlines.read("shared text")
+  local b = inlines.read("shared text")
+  t.truthy(not rawequal(a, b), "two reads of the same primed text return distinct (unaliased) tables")
+  t.eq(pandoc.write(pandoc.Pandoc({ pandoc.Plain(a) }), "native"),
+       pandoc.write(pandoc.Pandoc({ pandoc.Plain(b) }), "native"),
+       "the two distinct tables still have identical content")
+end
