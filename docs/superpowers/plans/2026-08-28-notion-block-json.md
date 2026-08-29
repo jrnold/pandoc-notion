@@ -1705,7 +1705,9 @@ local function unknown_block(block, type_name)
                                     { { "alt", tostring(type_name) } }))
 end
 
-local function convert_block(block)
+-- Exposed on M (not a local) because reader_custom.lua's registrations and the
+-- list-grouping pass in M.convert both dispatch through it.
+function M.convert_block(block)
   local type_name = json.get(block, "type")
   if not type_name then
     pandoc.log.warn("Skipping block with no type: " ..
@@ -1769,7 +1771,7 @@ function M.convert(blocks)
   local out = pandoc.Blocks({})
   for _, block in ipairs(blocks or {}) do
     if type(block) == "table" then
-      local converted = convert_block(block)
+      local converted = M.convert_block(block)
       if converted then
         if pandoc.utils.type(converted) == "Blocks" then
           out = out .. converted
@@ -2037,12 +2039,14 @@ function M.convert(blocks)
 end
 ```
 
-Then make two names visible to `reader_custom.lua` by changing their
-declarations in the same file:
+`M.convert_block` is already exposed on `M` from Task 7, so no rename is needed
+here — the replacement `M.convert` above calls it directly.
 
-- `local function convert_block(block)` becomes `function M.convert_block(block)`
-  (and the single call site inside `M.convert` already uses `M.convert_block`).
-- Add `M.list_item = nil` near `M.CUSTOM = {}`; `reader_custom.lua` assigns it.
+`M.convert` also calls `M.list_item`, which `reader_custom.lua` assigns when it
+is required. Until then `M.list_item` is `nil` and a document containing list
+items would fail — which is why the reader entry point (Task 9) requires
+`notion.block.reader_custom` unconditionally, and why this task's tests require
+it at the top.
 
 - [ ] **Step 3b: Write `notion/block/reader_custom.lua`**
 
