@@ -7,6 +7,7 @@ local suites = {
   "unit.escape_test",
   "unit.attr_test",
   "unit.schema_test",
+  "unit.block_json_test",
   "unit.tree_classify_test",
   "unit.tree_nest_test",
   "unit.tree_fix_test",
