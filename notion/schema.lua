@@ -146,8 +146,11 @@ for ntype, def in pairs(M.NOTION_INDEX) do
     notion_reverse[def.class] = ntype
   end
 end
--- Pin the reverse for the three shared-class pairs, so a writer emitting a
--- `page` Div produces child_page rather than whichever pairs() reached first.
+-- Pin the reverse for classes a future entry could contend for. Only
+-- "meeting-notes" is contended today (meeting_notes and transcription both
+-- claim it), where pairs() order would otherwise decide; the rest are
+-- defensive, so that adding a second claimant later cannot silently flip
+-- an existing mapping.
 notion_reverse["page"]          = "child_page"
 notion_reverse["database"]      = "child_database"
 notion_reverse["meeting-notes"] = "meeting_notes"

@@ -119,3 +119,9 @@ end
 t.eq(schema.class_to_notion("callout"), "callout", "callout reverses")
 t.eq(schema.class_to_notion("link-preview"), "link_preview", "link-preview reverses")
 t.eq(schema.class_to_notion("nonsense"), nil, "unknown class reverses to nil")
+
+-- meeting_notes and transcription both claim the "meeting-notes" class, so the
+-- reverse lookup is order-dependent without the explicit pin. This is the only
+-- real collision in NOTION_INDEX; assert it resolves to the canonical type.
+t.eq(schema.class_to_notion("meeting-notes"), "meeting_notes",
+     "meeting-notes reverses to the canonical type, not transcription")
