@@ -2767,27 +2767,48 @@ local VOID_CLASSES = {
 local function div_handler(el)
   local classes = el.classes or {}
 
-  -- A class-less, attribute-only Div is the colour wrapper of design doc 4.2:
-  -- unwrap it and push its colour onto the block inside.
+  -- A class-less Div means one of two things, distinguished by child count:
+  --   exactly one child  -> the colour wrapper of design doc 4.2
+  --   more than one      -> a parent block with children, which is how BOTH
+  --                         this reader and the NFM reader represent a
+  --                         paragraph that has nested content. Verified:
+  --                         "Parent\n\tChild" through the NFM reader yields
+  --                         Div ("",[],[]) [Para, Para].
+  -- Flattening the multi-child case would silently drop the nesting.
   if #classes == 0 then
-    local inner = M.convert(el.content)
     local color = M.color_of(el)
-    if color ~= "default" then
-      for _, b in ipairs(inner) do
-        if type(b[b.type]) == "table" and b[b.type].color then
-          b[b.type].color = color
+    local inner = M.convert(el.content)
+    if #inner <= 1 then
+      if color ~= "default" then
+        for _, b in ipairs(inner) do
+          if type(b[b.type]) == "table" then b[b.type].color = color end
         end
       end
+      return inner
     end
-    return inner
+    local parent = inner:remove(1)
+    if color ~= "default" and type(parent[parent.type]) == "table" then
+      parent[parent.type].color = color
+    end
+    if type(parent[parent.type]) == "table" then
+      parent[parent.type].children = inner
+    end
+    return parent
   end
 
   local class = classes[1]
   local head, rest = split_content(el.content)
 
-  -- toggle-heading is a wrapper whose first child is the real Header.
+  -- toggle-heading wraps a Header plus the children a Header cannot hold.
+  -- The children belong INSIDE the heading's payload, not beside it.
   if class == "toggle-heading" then
-    return M.convert(el.content)
+    local converted = M.convert(el.content)
+    if #converted == 0 then return converted end
+    local heading = converted:remove(1)
+    if #converted > 0 and type(heading[heading.type]) == "table" then
+      heading[heading.type].children = converted
+    end
+    return heading
   end
 
   if class == "synced-block" or class == "synced-block-reference" then
@@ -2841,6 +2862,15 @@ local function div_handler(el)
     return M.block(ntype, payload, el)
   end
 
+  -- column carries width_ratio, which has no `fields` entry because it needs
+  -- numeric conversion rather than a straight string copy.
+  if class == "column" then
+    local ratio = el.attributes["width-ratio"]
+    if ratio then payload.width_ratio = tonumber(ratio) or ratio end
+    payload.children = M.convert(el.content)
+    return M.block(ntype, payload, el)
+  end
+
   if def.rich_text then payload.rich_text = rich(head) end
   payload.color = M.color_of(el)
 
@@ -2881,10 +2911,16 @@ end
 
 M.HANDLERS.CodeBlock = function(el)
   local language = (el.classes or {})[1] or "plain text"
+  -- The reader stores a code block's caption as an attribute, since pandoc's
+  -- CodeBlock has no caption slot. Emit it back, or it is silently dropped.
+  local caption_text = el.attributes and el.attributes.caption or nil
+  local caption = caption_text
+                  and richtext.from_inlines({ pandoc.Str(caption_text) })
+                  or json.arr()
   return M.block("code", json.obj({
     rich_text = richtext.from_inlines({ pandoc.Str(el.text) }),
     language  = language,
-    caption   = json.arr(),
+    caption   = caption,
   }), el)
 end
 
@@ -3055,6 +3091,10 @@ t.eq(one(pandoc.Para({ pandoc.Superscript({ pandoc.Str("qz") }) }))
        .paragraph.rich_text[1].text.content, "qz", "no Unicode form falls back to literal")
 
 -- Footnotes: a marker inline plus endnote blocks at the end.
+-- Note numbering is module-level state on richtext, reset per document by the
+-- writer entry point. Reset it here too, or an earlier test's notes would
+-- shift this one's numbering.
+require("notion.block.richtext").reset_notes()
 local noted = writer.convert({
   pandoc.Para({ pandoc.Str("text"),
                 pandoc.Note({ pandoc.Para({ pandoc.Str("aside") }) }) }) })
@@ -3373,6 +3413,14 @@ end
 
 - [ ] **Step 2: Create the corpus**
 
+**Fixture authoring convention — load-bearing.** Canonical fixtures (everything
+outside `adversarial/`) **omit** keys whose value would be `null`. The writer
+omits `text.link` and `href` when there is no link, so a fixture that spells
+them `"link": null` cannot come back unchanged and would fail the no-loss check
+for a reason that has nothing to do with correctness. Real Notion output does
+include those nulls; `adversarial/nulls.json` is where that case is covered,
+and it is already on the exception list below.
+
 Create `tests/corpus/json/blocks/paragraph.json` verbatim:
 
 ```json
@@ -3384,24 +3432,24 @@ Create `tests/corpus/json/blocks/paragraph.json` verbatim:
       "rich_text": [
         {
           "type": "text",
-          "text": { "content": "Plain text with ", "link": null },
+          "text": { "content": "Plain text with " },
           "annotations": { "bold": false, "italic": false, "strikethrough": false,
                            "underline": false, "code": false, "color": "default" },
-          "plain_text": "Plain text with ", "href": null
+          "plain_text": "Plain text with "
         },
         {
           "type": "text",
-          "text": { "content": "bold", "link": null },
+          "text": { "content": "bold" },
           "annotations": { "bold": true, "italic": false, "strikethrough": false,
                            "underline": false, "code": false, "color": "default" },
-          "plain_text": "bold", "href": null
+          "plain_text": "bold"
         },
         {
           "type": "text",
-          "text": { "content": " inside.", "link": null },
+          "text": { "content": " inside." },
           "annotations": { "bold": false, "italic": false, "strikethrough": false,
                            "underline": false, "code": false, "color": "default" },
-          "plain_text": " inside.", "href": null
+          "plain_text": " inside."
         }
       ],
       "color": "default"
