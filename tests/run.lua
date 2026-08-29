@@ -10,6 +10,7 @@ local suites = {
   "unit.block_json_test",
   "unit.block_richtext_test",
   "unit.block_envelope_test",
+  "unit.block_props_test",
   "unit.tree_classify_test",
   "unit.tree_nest_test",
   "unit.tree_fix_test",
