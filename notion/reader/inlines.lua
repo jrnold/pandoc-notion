@@ -110,6 +110,15 @@ local function trim_leading(text)
   return text:gsub("^[ \t]+", "")
 end
 
+-- An empty or whitespace-only chunk always parses to zero blocks (verified:
+-- pandoc.read("", M.EXTENSIONS) and pandoc.read("   ", M.EXTENSIONS) both
+-- yield #doc.blocks == 0, regardless of extensions), so its Inlines result
+-- is always empty too. M.read short-circuits it rather than spending a
+-- pandoc.read call to learn what is already known -- this is what makes a
+-- blank chunk gather() skipped from priming (see blocks.lua's is_blank) NOT
+-- cost the document an extra per-chunk read to resolve.
+local function is_blank(text) return text:match("^%s*$") ~= nil end
+
 local cache = {}
 
 function M.reset() cache = {} end
@@ -145,6 +154,10 @@ function M.read(text)
   -- in-place mutation at one call site would silently corrupt every other
   -- occurrence of that line that shares the cache entry.
   if hit then return hit:clone() end
+  if is_blank(text) then
+    cache[text] = pandoc.Inlines({})
+    return cache[text]:clone()
+  end
   local doc = pandoc.read(trim_leading(text), M.EXTENSIONS)
   local ils = pandoc.utils.blocks_to_inlines(doc.blocks)
   local result = fold_citations(M.fold(ils))

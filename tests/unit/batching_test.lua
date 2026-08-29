@@ -295,3 +295,63 @@ do
        pandoc.write(pandoc.Pandoc({ pandoc.Plain(b) }), "native"),
        "the two distinct tables still have identical content")
 end
+
+-- A blank leaf_text (a bare "# ", a bare ">", "<td></td>") parses to ZERO
+-- blocks once joined into the batch, which used to desync M.prime's
+-- #doc.blocks ~= #texts guard and discard the WHOLE batch -- one wasted
+-- priming read plus one per-chunk read for every other line in the
+-- document (measured before this fix: "# \nPara." took 3 pandoc.read calls,
+-- "Para one.\n> \nPara two." took 4). gather() now drops blank chunks
+-- before they ever reach prime(), and M.read short-circuits blank text
+-- without spending a pandoc.read call to confirm what is already known --
+-- together the whole document, blank line included, must still batch to
+-- exactly ONE read.
+do
+  local blanky = {
+    "# \nPara.",
+    "Para one.\n> \nPara two.",
+    "<td></td>\nAfter.",
+  }
+  for _, src in ipairs(blanky) do
+    assert_one_read_and_identical_output(src, "blank chunk alongside normal lines: " .. src)
+  end
+end
+
+-- Item B confirmation: gather() must not prime a chunk nothing will ever
+-- look up. Inside a real <table>, only cell text is requested (table_block
+-- reads cells alone) -- <tr>, <colgroup>, and <col> are structural and are
+-- never handed to inlines.read, so they must never appear in the joined
+-- priming batch even though they are valid, non-blank strings. Capture the
+-- exact text handed to the priming pandoc.read call and check.
+do
+  local tbl_colgroup = table.concat({
+    "<table>",
+    "\t<colgroup>",
+    '\t\t<col color="blue"/>',
+    "\t\t<col/>",
+    "\t</colgroup>",
+    "\t<tr>",
+    "\t\t<td>A</td>",
+    "\t\t<td>B</td>",
+    "\t</tr>",
+    "</table>",
+  }, "\n")
+
+  local real_read2 = pandoc.read
+  local captured = nil
+  local function capturing(text, ...) captured = text; return real_read2(text, ...) end
+  inlines.reset()
+  pandoc.read = capturing
+  blocks.convert_document(tree.parse(tbl_colgroup))
+  pandoc.read = real_read2
+
+  t.truthy(captured ~= nil, "table with colgroup still primes at least the cell texts")
+  t.truthy(captured:find("<colgroup>", 1, true) == nil,
+           "gather() does not prime the never-looked-up '<colgroup>' chunk")
+  t.truthy(captured:find("<tr>", 1, true) == nil,
+           "gather() does not prime the never-looked-up '<tr>' chunk")
+  t.truthy(captured:find("<col", 1, true) == nil,
+           "gather() does not prime the never-looked-up '<col.../>' chunk")
+
+  assert_one_read_and_identical_output(tbl_colgroup, "table with colgroup")
+end

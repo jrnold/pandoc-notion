@@ -356,6 +356,14 @@ convert = function(nodes)
   return out
 end
 
+-- An empty or whitespace-only chunk (a bare "# ", a bare ">", "<td></td>")
+-- parses to ZERO blocks once joined with "\n\n" into the batch, which
+-- desyncs M.prime's `#doc.blocks ~= #texts` guard and discards the WHOLE
+-- batch -- paying a wasted priming read AND a per-chunk read for every
+-- other line in the document. Such a chunk parses to nothing anyway, so
+-- priming it is pure downside; gather() drops it instead of collecting it.
+local function is_blank(text) return text:match("^%s*$") ~= nil end
+
 -- Gather every leaf inline run in the tree so they can be parsed in one pass.
 -- leaf_text() is the same function block_for() itself uses to decide what to
 -- hand to inlines.read(), so the primed cache key and the lookup key can
@@ -363,7 +371,11 @@ end
 -- context-dependent (see cell_text above): a "table" node's rows are walked
 -- separately here, the same way table_block() walks them, using the
 -- matching cell_text() rather than leaf_text()'s context-free (and for
--- "td", therefore wrong) fallback.
+-- "td", therefore wrong) fallback. Only ever a chunk some reader will
+-- actually request: leaf_text/cell_text already return nil for a node whose
+-- text is never looked up (code, math, table structure other than cells,
+-- container nodes), and is_blank drops the ones that ARE looked up but
+-- parse to nothing.
 local function gather(nodes, acc)
   for _, node in ipairs(nodes) do
     if node.tag == "table" then
@@ -372,7 +384,7 @@ local function gather(nodes, acc)
           for _, td in ipairs(tr.children) do
             if td.tag == "td" then
               local text = cell_text(td)
-              if text then acc[#acc + 1] = text end
+              if text and not is_blank(text) then acc[#acc + 1] = text end
               gather(td.children, acc)
             end
           end
@@ -380,7 +392,7 @@ local function gather(nodes, acc)
       end
     else
       local text = leaf_text(node)
-      if text then acc[#acc + 1] = text end
+      if text and not is_blank(text) then acc[#acc + 1] = text end
       gather(node.children, acc)
     end
   end
