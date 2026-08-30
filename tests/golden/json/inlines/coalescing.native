@@ -1,0 +1,12 @@
+Pandoc
+  Meta { unMeta = fromList [] }
+  [ Para
+      [ Str "one"
+      , Space
+      , Str "two"
+      , Space
+      , Str "three"
+      , Space
+      , Str "four"
+      ]
+  ]

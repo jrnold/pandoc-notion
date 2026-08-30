@@ -1,0 +1,8 @@
+Pandoc
+  Meta { unMeta = fromList [] }
+  [ BlockQuote
+      [ Para
+          [ Str "A" , Space , Str "quoted" , Space , Str "line." ]
+      , Para [ Str "Attribution." ]
+      ]
+  ]

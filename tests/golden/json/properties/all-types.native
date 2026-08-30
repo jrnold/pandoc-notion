@@ -1,0 +1,38 @@
+Pandoc
+  Meta
+    { unMeta =
+        fromList
+          [ ( "Attachments"
+            , MetaList [ MetaString "https://example.com/a.pdf" ]
+            )
+          , ( "Author" , MetaString "Alice" )
+          , ( "Computed" , MetaString "42" )
+          , ( "Contact" , MetaString "a@example.com" )
+          , ( "Created" , MetaString "2026-01-01T00:00:00.000Z" )
+          , ( "Done" , MetaBool True )
+          , ( "Edited" , MetaString "2026-01-02T00:00:00.000Z" )
+          , ( "Editor" , MetaString "Bob" )
+          , ( "Name" , MetaInlines [ Str "My" , Space , Str "Page" ] )
+          , ( "Notes"
+            , MetaInlines [ Str "Some" , Space , Str "notes" ]
+            )
+          , ( "Owners"
+            , MetaList [ MetaString "Alice" , MetaString "Bob" ]
+            )
+          , ( "Phone" , MetaString "555-1234" )
+          , ( "Related"
+            , MetaList [ MetaString "r-1" , MetaString "r-2" ]
+            )
+          , ( "Score" , MetaString "87" )
+          , ( "Site" , MetaString "https://example.com" )
+          , ( "Stage" , MetaString "Todo" )
+          , ( "State" , MetaString "In Progress" )
+          , ( "Summed" , MetaString "7" )
+          , ( "Tags" , MetaList [ MetaString "A" , MetaString "B" ] )
+          , ( "When" , MetaString "2026-01-01/2026-01-05" )
+          , ( "title"
+            , MetaInlines [ Str "My" , Space , Str "Page" ]
+            )
+          ]
+    }
+  []

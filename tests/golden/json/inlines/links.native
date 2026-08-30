@@ -1,0 +1,19 @@
+Pandoc
+  Meta { unMeta = fromList [] }
+  [ Para
+      [ Link
+          ( "" , [] , [] )
+          [ Str "via" , Space , Str "text.link" ]
+          ( "https://a.example.com" , "" )
+      , Link
+          ( "" , [] , [] )
+          [ Space
+          , Str "via"
+          , Space
+          , Str "href"
+          , Space
+          , Str "only"
+          ]
+          ( "https://b.example.com" , "" )
+      ]
+  ]

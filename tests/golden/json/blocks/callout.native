@@ -1,0 +1,9 @@
+Pandoc
+  Meta { unMeta = fromList [] }
+  [ Div
+      ( ""
+      , [ "callout" ]
+      , [ ( "icon" , "\128161" ) , ( "color" , "blue_bg" ) ]
+      )
+      [ Plain [ Str "Heads" , Space , Str "up." ] ]
+  ]

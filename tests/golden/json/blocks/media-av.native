@@ -1,0 +1,35 @@
+Pandoc
+  Meta { unMeta = fromList [] }
+  [ Figure
+      ( "" , [ "audio" ] , [] )
+      (Caption
+         Nothing [ Plain [ Str "Audio" , Space , Str "clip." ] ])
+      [ Plain
+          [ Link
+              ( "" , [] , [] )
+              [ Str "Audio" , Space , Str "clip." ]
+              ( "https://example.com/clip.mp3" , "" )
+          ]
+      ]
+  , Figure
+      ( "" , [ "video" ] , [] )
+      (Caption
+         Nothing [ Plain [ Str "Video" , Space , Str "clip." ] ])
+      [ Plain
+          [ Link
+              ( "" , [] , [] )
+              [ Str "Video" , Space , Str "clip." ]
+              ( "https://example.com/clip.mp4" , "" )
+          ]
+      ]
+  , Figure
+      ( "" , [ "file" ] , [] )
+      (Caption Nothing [ Plain [ Str "Attachment." ] ])
+      [ Plain
+          [ Link
+              ( "" , [] , [] )
+              [ Str "Attachment." ]
+              ( "https://example.com/doc.zip" , "" )
+          ]
+      ]
+  ]

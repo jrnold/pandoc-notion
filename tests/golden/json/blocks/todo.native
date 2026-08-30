@@ -1,0 +1,9 @@
+Pandoc
+  Meta { unMeta = fromList [] }
+  [ BulletList
+      [ [ Plain [ Str "\9746" , Space , Str "Done" ] ]
+      , [ Plain
+            [ Str "\9744" , Space , Str "Not" , Space , Str "done" ]
+        ]
+      ]
+  ]

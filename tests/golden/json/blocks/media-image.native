@@ -1,0 +1,14 @@
+Pandoc
+  Meta { unMeta = fromList [] }
+  [ Figure
+      ( "" , [ "image" ] , [] )
+      (Caption
+         Nothing [ Plain [ Str "A" , Space , Str "diagram." ] ])
+      [ Plain
+          [ Link
+              ( "" , [] , [] )
+              [ Str "A" , Space , Str "diagram." ]
+              ( "https://example.com/a.png" , "" )
+          ]
+      ]
+  ]

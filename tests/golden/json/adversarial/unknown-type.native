@@ -1,0 +1,6 @@
+Pandoc
+  Meta { unMeta = fromList [] }
+  [ Div
+      ( "" , [ "unknown" ] , [ ( "alt" , "some_future_type" ) ] )
+      []
+  ]

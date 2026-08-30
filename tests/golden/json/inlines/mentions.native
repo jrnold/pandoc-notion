@@ -1,0 +1,62 @@
+Pandoc
+  Meta { unMeta = fromList [] }
+  [ Para
+      [ Span
+          ( ""
+          , [ "mention" , "mention-user" ]
+          , [ ( "url" , "u-1" ) ]
+          )
+          [ Str "@User" ]
+      , Space
+      , Span
+          ( ""
+          , [ "mention" , "mention-page" ]
+          , [ ( "url" , "p-1" ) ]
+          )
+          [ Str "Page" ]
+      , Space
+      , Span
+          ( ""
+          , [ "mention" , "mention-database" ]
+          , [ ( "url" , "d-1" ) ]
+          )
+          [ Str "Database" ]
+      , Space
+      , Span
+          ( ""
+          , [ "mention" , "mention-date" ]
+          , [ ( "start" , "2026-01-01" ) ]
+          )
+          [ Str "Jan" , Space , Str "1" ]
+      , Space
+      , Span
+          ( ""
+          , [ "mention" , "mention-date" ]
+          , [ ( "start" , "2026-01-01" ) , ( "end" , "2026-01-05" ) ]
+          )
+          [ Str "Jan"
+          , Space
+          , Str "1"
+          , Space
+          , Str "to"
+          , Space
+          , Str "Jan"
+          , Space
+          , Str "5"
+          ]
+      , Space
+      , Span
+          ( ""
+          , [ "mention" , "mention-link-preview" ]
+          , [ ( "url" , "https://example.com" ) ]
+          )
+          [ Str "https://example.com" ]
+      , Space
+      , Span
+          ( ""
+          , [ "mention" , "mention-template" ]
+          , [ ( "kind" , "today" ) ]
+          )
+          [ Str "Today" ]
+      ]
+  ]

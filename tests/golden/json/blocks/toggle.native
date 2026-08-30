@@ -1,0 +1,10 @@
+Pandoc
+  Meta { unMeta = fromList [] }
+  [ Div
+      ( "" , [ "toggle" ] , [] )
+      [ Plain
+          [ Str "Click" , Space , Str "to" , Space , Str "expand" ]
+      , Para [ Str "First" , Space , Str "child." ]
+      , Para [ Str "Second" , Space , Str "child." ]
+      ]
+  ]

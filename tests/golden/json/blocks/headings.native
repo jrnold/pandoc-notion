@@ -1,0 +1,29 @@
+Pandoc
+  Meta { unMeta = fromList [] }
+  [ Header
+      1 ( "" , [] , [] ) [ Str "Heading" , Space , Str "one" ]
+  , Header
+      2 ( "" , [] , [] ) [ Str "Heading" , Space , Str "two" ]
+  , Header
+      3
+      ( "" , [] , [ ( "toggle" , "true" ) ] )
+      [ Str "Toggleable,"
+      , Space
+      , Str "no"
+      , Space
+      , Str "children"
+      ]
+  , Div
+      ( "" , [ "toggle-heading" ] , [] )
+      [ Header
+          4
+          ( "" , [] , [ ( "toggle" , "true" ) ] )
+          [ Str "Toggleable,"
+          , Space
+          , Str "with"
+          , Space
+          , Str "children"
+          ]
+      , Para [ Str "Nested" , Space , Str "body." ]
+      ]
+  ]

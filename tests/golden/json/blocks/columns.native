@@ -1,0 +1,10 @@
+Pandoc
+  Meta { unMeta = fromList [] }
+  [ Div
+      ( "" , [ "columns" ] , [] )
+      [ Div
+          ( "" , [ "column" ] , [ ( "width-ratio" , "0.3" ) ] )
+          [ Para [ Str "Left" ] ]
+      , Div ( "" , [ "column" ] , [] ) [ Para [ Str "Right" ] ]
+      ]
+  ]

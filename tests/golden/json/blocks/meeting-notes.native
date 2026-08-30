@@ -1,0 +1,9 @@
+Pandoc
+  Meta { unMeta = fromList [] }
+  [ Div
+      ( "" , [ "meeting-notes" ] , [] )
+      [ Para [ Str "Notes" , Space , Str "body." ] ]
+  , Div
+      ( "" , [ "meeting-notes" ] , [] )
+      [ Para [ Str "Transcript" , Space , Str "body." ] ]
+  ]

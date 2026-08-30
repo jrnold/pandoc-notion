@@ -1,0 +1,5 @@
+Pandoc
+  Meta { unMeta = fromList [] }
+  [ Div ( "b-1" , [] , [] ) [ Para [ Str "text" ] ]
+  , Div ( "" , [ "synced-block" ] , [] ) []
+  ]

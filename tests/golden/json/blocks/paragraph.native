@@ -1,0 +1,14 @@
+Pandoc
+  Meta { unMeta = fromList [] }
+  [ Para
+      [ Str "Plain"
+      , Space
+      , Str "text"
+      , Space
+      , Str "with"
+      , Space
+      , Strong [ Str "bold" ]
+      , Space
+      , Str "inside."
+      ]
+  ]

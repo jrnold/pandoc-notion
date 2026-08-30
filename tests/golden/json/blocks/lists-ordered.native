@@ -1,0 +1,9 @@
+Pandoc
+  Meta { unMeta = fromList [] }
+  [ OrderedList
+      ( 3 , Decimal , Period )
+      [ [ Plain [ Str "Third" ] ]
+      , [ Plain [ Str "Fourth" ] ]
+      , [ Plain [ Str "Fifth" ] ]
+      ]
+  ]

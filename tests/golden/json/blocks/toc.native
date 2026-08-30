@@ -1,0 +1,6 @@
+Pandoc
+  Meta { unMeta = fromList [] }
+  [ Div
+      ( "" , [ "table-of-contents" ] , [ ( "color" , "red" ) ] )
+      []
+  ]

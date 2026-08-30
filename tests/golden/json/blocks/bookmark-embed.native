@@ -1,0 +1,23 @@
+Pandoc
+  Meta { unMeta = fromList [] }
+  [ Div
+      ( ""
+      , [ "bookmark" ]
+      , [ ( "url" , "https://example.com" ) ]
+      )
+      [ Plain
+          [ Str "A" , Space , Str "bookmark" , Space , Str "caption" ]
+      ]
+  , Div
+      ( ""
+      , [ "embed" ]
+      , [ ( "url" , "https://example.com/embed" ) ]
+      )
+      []
+  , Div
+      ( ""
+      , [ "link-preview" ]
+      , [ ( "url" , "https://example.com/preview" ) ]
+      )
+      []
+  ]

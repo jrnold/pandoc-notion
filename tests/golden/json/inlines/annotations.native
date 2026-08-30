@@ -1,0 +1,25 @@
+Pandoc
+  Meta { unMeta = fromList [] }
+  [ Para
+      [ Strong [ Str "bold" ]
+      , Space
+      , Emph [ Str "italic" ]
+      , Space
+      , Underline [ Str "underline" ]
+      , Space
+      , Strikeout [ Str "strikethrough" ]
+      , Space
+      , Code ( "" , [] , [] ) "code"
+      , Space
+      , Span
+          ( "" , [] , [ ( "color" , "red" ) ] )
+          [ Strong
+              [ Emph
+                  [ Underline
+                      [ Strikeout [ Code ( "" , [] , [] ) "everything" ]
+                      ]
+                  ]
+              ]
+          ]
+      ]
+  ]

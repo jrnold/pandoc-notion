@@ -1,0 +1,13 @@
+Pandoc
+  Meta { unMeta = fromList [] }
+  [ Figure
+      ( ""
+      , [ "pdf" ]
+      , [ ( "data-file-upload-id"
+          , "43833259-73a7-4b8f-9b1e-000000000001"
+          )
+        ]
+      )
+      (Caption Nothing [ Plain [] ])
+      [ Plain [] ]
+  ]

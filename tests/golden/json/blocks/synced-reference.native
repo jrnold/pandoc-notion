@@ -1,0 +1,9 @@
+Pandoc
+  Meta { unMeta = fromList [] }
+  [ Div
+      ( ""
+      , [ "synced-block-reference" ]
+      , [ ( "url" , "b-9" ) ]
+      )
+      []
+  ]

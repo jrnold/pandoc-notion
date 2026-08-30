@@ -1,0 +1,14 @@
+Pandoc
+  Meta { unMeta = fromList [] }
+  [ Para
+      [ Str "The"
+      , Space
+      , Str "formula"
+      , Space
+      , Math InlineMath "e^{i\\pi}+1=0"
+      , Space
+      , Str "is"
+      , Space
+      , Str "beautiful."
+      ]
+  ]

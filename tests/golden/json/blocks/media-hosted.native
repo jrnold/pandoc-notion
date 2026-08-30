@@ -1,0 +1,15 @@
+Pandoc
+  Meta { unMeta = fromList [] }
+  [ Figure
+      ( "" , [ "image" ] , [] )
+      (Caption
+         Nothing
+         [ Plain [ Str "Uploaded" , Space , Str "screenshot." ] ])
+      [ Plain
+          [ Link
+              ( "" , [] , [] )
+              [ Str "Uploaded" , Space , Str "screenshot." ]
+              ( "https://s3.example.com/signed-abc" , "" )
+          ]
+      ]
+  ]

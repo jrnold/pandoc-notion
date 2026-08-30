@@ -1,0 +1,3 @@
+Pandoc
+  Meta { unMeta = fromList [] }
+  [ Para [ Math DisplayMath "e^{i\\pi}+1=0" ] ]
