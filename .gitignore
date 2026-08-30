@@ -2,3 +2,8 @@
 # Not needed to run the readers/writers or the test suite, which depend on
 # nothing but pandoc.
 .luarocks/
+
+# uv-managed virtualenv and caches for notion-upload/.
+notion-upload/.venv/
+notion-upload/.pytest_cache/
+__pycache__/
