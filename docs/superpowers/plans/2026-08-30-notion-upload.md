@@ -1165,7 +1165,7 @@ Expected: PASS, 12 tests.
 
 ```bash
 git add notion-upload/
-git commit -m "feat(upload): plan append requests, inlining children iff no grandchildren"
+git commit -m "feat(upload): plan append requests, inlining a leading run of leaf children"
 ```
 
 ---
