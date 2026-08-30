@@ -90,6 +90,16 @@ t.eq(one(pandoc.Div({}, pandoc.Attr("", { "table-of-contents" }, {}))).type,
 t.eq(one(pandoc.Div({}, pandoc.Attr("", { "unknown" }, { { "alt", "widget" } }))).type,
      "unsupported", "unknown maps back to unsupported")
 
+-- Bug 3 (write direction, already correct -- confirmed alongside the reader
+-- fix): a bookmark's leading content becomes "caption", not "rich_text".
+local bkmk = one(pandoc.Div({ pandoc.Para({ pandoc.Str("A bookmark caption") }) },
+                            pandoc.Attr("", { "bookmark" }, { { "url", "https://e.com" } })))
+t.eq(bkmk.type, "bookmark", "the bookmark class")
+t.eq(bkmk.bookmark.url, "https://e.com", "carrying its url")
+t.eq(bkmk.bookmark.caption[1].text.content, "A bookmark caption",
+     "and its content under caption, not rich_text")
+t.eq(bkmk.bookmark.rich_text, nil, "bookmark has no rich_text field at all")
+
 -- Reuse: the page/database classes map back to child_page/child_database.
 t.eq(one(pandoc.Div({}, pandoc.Attr("", { "page" }, { { "title", "Sub" } }))).type,
      "child_page", "the page class becomes child_page")
@@ -102,6 +112,26 @@ t.eq(one(pandoc.Div({}, pandoc.Attr("", { "synced-block" }, {}))).synced_block.s
 local ref = one(pandoc.Div({}, pandoc.Attr("", { "synced-block-reference" },
                                            { { "url", "b-1" } })))
 t.eq(ref.synced_block.synced_from.block_id, "b-1", "a reference names its source")
+
+-- Cross-task fix (Bug 4): template's head Plain/Para becomes rich_text, so
+-- only the REMAINING content is children -- the VOID_CLASSES branch was
+-- converting el.content wholesale, duplicating the head as an extra child.
+local tmpl = one(pandoc.Div({ pandoc.Para({ pandoc.Str("New page") }),
+                              pandoc.Para({ pandoc.Str("Template body.") }) },
+                            pandoc.Attr("", { "template" }, {})))
+t.eq(tmpl.type, "template", "the template class")
+t.eq(tmpl.template.rich_text[1].text.content, "New page", "leading text becomes rich_text")
+t.eq(#tmpl.template.children, 1, "exactly one child -- the head is not duplicated")
+t.eq(tmpl.template.children[1].paragraph.rich_text[1].text.content, "Template body.",
+     "and it is the real remaining content")
+
+-- tab has no rich_text of its own, so unlike template its WHOLE content is
+-- children -- this must keep working while template's duplicate is fixed.
+local tabbed = one(pandoc.Div({ pandoc.Para({ pandoc.Str("First") }),
+                                pandoc.Para({ pandoc.Str("Second") }) },
+                              pandoc.Attr("", { "tab" }, {})))
+t.eq(tabbed.type, "tab", "the tab class")
+t.eq(#tabbed.tab.children, 2, "both paragraphs are kept as children")
 
 -- A class-less attribute-only Div is the colour wrapper: unwrap it.
 local wrapped = one(pandoc.Div({ pandoc.Para({ pandoc.Str("hi") }) },

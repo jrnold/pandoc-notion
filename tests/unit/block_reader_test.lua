@@ -117,6 +117,13 @@ t.eq(reader.convert({ { type = "bookmark",
 t.eq(reader.convert({ { type = "breadcrumb", breadcrumb = {} } })[1].classes,
      pandoc.List({ "breadcrumb" }), "breadcrumb")
 
+-- Bug 3: bookmark's inline content lives under "caption", not "rich_text" --
+-- rich_text_key must redirect the generic reader path to read it.
+local bookmarked = reader.convert({ { type = "bookmark",
+  bookmark = { url = "https://e.com", caption = { run("A bookmark caption") } } } })
+t.eq(pandoc.utils.stringify(bookmarked[1]), "A bookmark caption",
+     "the caption becomes the bookmark Div's content, not dropped")
+
 -- ---- irregular types (Task 8) ----
 require "notion.block.reader_custom"
 

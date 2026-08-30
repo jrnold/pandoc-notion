@@ -79,7 +79,11 @@ end
 
 -- Notion types that have no NFM tag at all.
 M.NOTION_BLOCKS = {
-  bookmark     = { class = "bookmark",     fields = { url = "url" } },
+  -- bookmark's inline content is Notion's "caption", not "rich_text" --
+  -- rich_text_key redirects the table-driven reader path to it. (The writer
+  -- special-cases bookmark's own branch and writes "caption" directly.)
+  bookmark     = { class = "bookmark",     fields = { url = "url" },
+                   rich_text = true, rich_text_key = "caption" },
   embed        = { class = "embed",        fields = { url = "url" } },
   link_preview = { class = "link-preview", fields = { url = "url" } },
   breadcrumb   = { class = "breadcrumb",   fields = {} },
@@ -131,10 +135,11 @@ M.NOTION_INDEX = {
 -- Fold the NFM-less types in.
 for ntype, def in pairs(M.NOTION_BLOCKS) do
   M.NOTION_INDEX[ntype] = {
-    class     = def.class,
-    fields    = def.fields,
-    rich_text = def.rich_text,
-    children  = def.children,
+    class         = def.class,
+    fields        = def.fields,
+    rich_text     = def.rich_text,
+    rich_text_key = def.rich_text_key,
+    children      = def.children,
   }
 end
 

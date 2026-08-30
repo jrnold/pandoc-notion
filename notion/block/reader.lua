@@ -98,7 +98,10 @@ function M.convert_block(block)
 
   local id      = json.get(block, "id")
   local color   = json.color_to_ast(json.get(payload, "color"))
-  local inlines = def.rich_text and richtext.to_inlines(json.get(payload, "rich_text"))
+  -- Almost every type's inline content lives under "rich_text"; bookmark's
+  -- lives under "caption" instead, per rich_text_key (design doc 4.3).
+  local inlines = def.rich_text
+                  and richtext.to_inlines(json.get(payload, def.rich_text_key or "rich_text"))
                   or nil
   local kids    = def.children and M.convert(M.children_of(block, payload)) or nil
 

@@ -179,7 +179,9 @@ local function div_handler(el)
     local payload = json.obj({})
     if class == "table-of-contents" then payload.color = M.color_of(el) end
     if class == "template" or class == "tab" then
-      local kids = M.convert(el.content)
+      -- template's head Plain/Para becomes rich_text, so only `rest` is
+      -- children; tab has no rich_text, so its whole content is children.
+      local kids = M.convert(class == "template" and rest or el.content)
       if #kids > 0 then payload.children = kids end
       if class == "template" then payload.rich_text = rich(head) end
     end
