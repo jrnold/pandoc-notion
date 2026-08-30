@@ -836,10 +836,15 @@ git commit -m "feat(upload): normalize rich text against both the character and 
 
 **The two rules this implements (spec §5):**
 
-1. **Inline iff no grandchildren.** A block carries its `children` in the payload only when none of those children have children. Otherwise it is sent childless and its children become a deferred wave. This holds because an append response reports ids only for *top-level* blocks (spec §2.7) — so any block whose id the recursion will need must itself appear top-level in some request.
-2. **Pack greedily against all four bounds at once**, with a **strip-and-defer** fallback: if a block with inlined children cannot fit even in an empty request, send it childless and defer its children. Task 3 guarantees a childless block always fits, so packing is total and the recursion terminates.
+1. **Inline the longest leading run of leaf children that fits; defer the rest.** A block carries as many of its children in the payload as it legally can, stopping at the first child that has children of its own (that child needs an id, so it must appear top-level in some later request) or at the first child that would breach a bound. Everything from that point on becomes a deferred wave.
+
+   **Prefix, not subset.** Deferred children are *appended* to the parent, so they land after whatever was inlined. Only taking a leading run preserves document order — and because appending does that naturally, no `position` parameter is needed.
+
+2. **Pack greedily against all four bounds at once.** Task 3 guarantees a childless block always fits alone, and rule 1 can always fall back to inlining nothing, so packing is total and the recursion terminates.
 
 Requests are emitted in **document order**: siblings are packed first, then their children, depth-first.
+
+**A bound that is easy to miss:** the 100-children cap applies to *every* `children` array, not just the request's top-level one. An all-or-nothing inlining rule will happily emit a block with 120 inlined children — one legal-looking request that Notion rejects. Rule 1 caps the inlined run at `lim.children` for exactly this reason, and Task 5's fake validates every array at every depth so the mistake cannot come back.
 
 - [ ] **Step 1: Write the failing test**
 
@@ -916,15 +921,53 @@ def test_packing_respects_the_element_bound_counting_inlined_children():
         assert document.count(request.blocks) <= lim.elements
 
 
-def test_strip_and_defer_when_inlined_children_cannot_fit():
-    # One parent whose inlined children blow the byte budget, but which fits
-    # comfortably on its own.
+def test_inlined_children_never_exceed_the_children_cap():
+    # 120 leaf children: legal by element count, illegal as one children array.
+    tree = [para("b", children=[para(f"x{i}") for i in range(120)])]
+    plan = planner.plan(tree, limits.DEFAULT)
+    for request in plan:
+        for block in request.blocks:
+            assert len(document.children_of(block)) <= limits.DEFAULT.children
+    assert len(plan) == 2, "100 inlined, 20 deferred"
+    assert len(document.children_of(plan[0].blocks[0])) == 100
+    assert len(plan[1].blocks) == 20
+
+
+def test_the_deferred_remainder_preserves_document_order():
+    tree = [para("b", children=[para(f"x{i}") for i in range(120)])]
+    plan = planner.plan(tree, limits.DEFAULT)
+    inlined = [text_of(k) for k in document.children_of(plan[0].blocks[0])]
+    deferred = [text_of(b) for b in plan[1].blocks]
+    assert inlined + deferred == [f"x{i}" for i in range(120)], (
+        "appending puts deferred children after inlined ones, so the inlined "
+        "set must be a prefix"
+    )
+
+
+def test_inlining_stops_at_the_first_child_that_has_children():
+    kids = [para("a"), para("b"), para("c", children=[para("g")]), para("d")]
+    tree = [para("p", children=kids)]
+    plan = planner.plan(tree, limits.DEFAULT)
+    inlined = [text_of(k) for k in document.children_of(plan[0].blocks[0])]
+    assert inlined == ["a", "b"], "c needs its own id, so c and everything after defers"
+    assert [text_of(b) for b in plan[1].blocks] == ["c", "d"]
+
+
+def test_a_leading_child_with_children_means_nothing_is_inlined():
+    tree = [para("p", children=[para("c", children=[para("g")]), para("d")])]
+    plan = planner.plan(tree, limits.DEFAULT)
+    assert document.children_of(plan[0].blocks[0]) == []
+    assert [text_of(b) for b in plan[1].blocks] == ["c", "d"]
+
+
+def test_inlining_stops_when_the_byte_budget_runs_out():
     lim = limits.Limits(byte_budget=400)
     tree = [para("p", children=[para("x" * 200), para("y" * 200)])]
     plan = planner.plan(tree, lim)
-    assert document.children_of(plan[0].blocks[0]) == [], "children must be deferred"
-    assert plan[1].parent == planner.Ref(request=0, index=0)
+    for request in plan:
+        assert limits.serialized_size(request.blocks) <= lim.byte_budget
     assert len(plan) >= 2
+    assert plan[1].parent == planner.Ref(request=0, index=0)
 
 
 def test_requests_come_in_document_order():
@@ -1006,25 +1049,38 @@ class Request:
 def _prepare(block: dict, lim: Limits) -> tuple[dict, list[dict]]:
     """Return the payload for one block and the children it must defer.
 
-    Rule 1: inline children iff none of them have children of their own.
-    Rule 2 (fallback): if the inlined form cannot fit alone in an empty
-    request, strip it. Task 3 guarantees the childless form always fits.
+    Inline the longest LEADING run of children that are leaves and fit;
+    everything from the first non-leaf or first over-budget child onward is
+    deferred. A leading run and not an arbitrary subset, because deferred
+    children are appended to the parent and therefore land after whatever was
+    inlined - taking a prefix is what keeps document order without needing
+    the `position` parameter.
+
+    Note the `lim.children` check: the 100-children cap applies to every
+    children array, not only the request's top-level one, so a block with 120
+    leaf children cannot carry them all however much byte budget is spare.
     """
     kids = document.children_of(block)
     if not kids:
         return document.without_children(block), []
 
-    if any(document.children_of(kid) for kid in kids):
-        return document.without_children(block), list(kids)
+    taken: list[dict] = []
+    for kid in kids:
+        if document.children_of(kid):
+            break  # this child needs its own id, so it must be top-level later
+        if len(taken) >= lim.children:
+            break
+        trial = document.with_children(block, taken + [kid])
+        if document.count([trial]) > lim.elements:
+            break
+        if serialized_size([trial]) > lim.byte_budget:
+            break
+        taken.append(kid)
 
-    inlined = document.with_children(block, list(kids))
-    fits = (
-        serialized_size([inlined]) <= lim.byte_budget
-        and document.count([inlined]) <= lim.elements
-    )
-    if fits:
-        return inlined, []
-    return document.without_children(block), list(kids)
+    deferred = list(kids[len(taken):])
+    if not taken:
+        return document.without_children(block), deferred
+    return document.with_children(block, taken), deferred
 
 
 def plan(blocks: list[dict], lim: Limits) -> list[Request]:
@@ -1163,9 +1219,22 @@ class FakeNotion:
                 deepest = max(deepest, self._depth(kids, level + 1))
         return deepest
 
+    def _check_arrays(self, blocks, depth=1):
+        """Every children array is capped, not just the request's top-level one.
+
+        This is the check that catches a block carrying 120 inlined children:
+        one legal-looking request that Notion rejects.
+        """
+        if len(blocks) > self.lim.children:
+            self._reject(
+                f"children array of {len(blocks)} at depth {depth} "
+                f"exceeds {self.lim.children}"
+            )
+        for block in blocks:
+            self._check_arrays(document.children_of(block), depth + 1)
+
     def _validate(self, children):
-        if len(children) > self.lim.children:
-            self._reject(f"{len(children)} children exceeds {self.lim.children}")
+        self._check_arrays(children)
         total = document.count(children)
         if total > self.lim.elements:
             self._reject(f"{total} elements exceeds {self.lim.elements}")
@@ -1311,6 +1380,16 @@ def test_the_fake_rejects_too_many_children():
     fake = fake_notion.FakeNotion(limits.Limits(children=3))
     with pytest.raises(fake_notion.Rejected):
         fake.create_page([para(str(i)) for i in range(4)])
+
+
+def test_the_fake_rejects_an_oversized_nested_children_array():
+    # Legal at the top level, illegal one level down. A fake that only checks
+    # the request's own array would let this through.
+    fake = fake_notion.FakeNotion(limits.Limits(children=3))
+    parent = para("p", children=[para(str(i)) for i in range(4)])
+    with pytest.raises(fake_notion.Rejected) as exc:
+        fake.create_page([parent])
+    assert "depth 2" in str(exc.value)
 
 
 def test_the_fake_rejects_excessive_nesting():
@@ -2756,6 +2835,8 @@ git commit -m "test(upload): run the pipeline over fixtures generated from the L
 ## Self-Review
 
 **Spec coverage.** Every section maps to a task: §2.3/§2.4 limits → Task 1; §4 input contract → Task 2; §7 normalization and splitting → Task 3; §5.1–§5.3 planner → Task 4; §9.1–§9.3 fake, invariant, properties → Task 5; §2.4/§2.5/§2.6 client, retry, upload endpoints, parent probing → Task 6; §6 media → Task 7; §3 phases, §8 failure model, title inference → Task 8; §9.4 fixtures → Task 9.
+
+**The inlining rule was changed after review, and the change fixed a bug.** The first draft inlined all children or none. Prototyping the replacement — inline the longest leading run of leaf children that fits — showed the original emitting a block with 120 inlined children on a perfectly ordinary shape, because the 100-children cap applies to every array at every depth and the original only respected it at the top level. The test fake had the matching blind spot, which is why the rule survived its first review. Both are fixed here, and spec §5.1 and §9.1 are rewritten to record it. Verified: 1000 randomized cases round-trip exactly with every array in bounds, at two limit settings.
 
 **The planner was verified before this plan was written, not assumed.** The Task 4 algorithm was prototyped and run against 6000 generated trees at two limit settings. No request exceeded the children, element, or nesting bounds; the parent-precedes-child ordering held everywhere; the spec's worked example came out at 2 requests; and 600 execute-and-compare round trips reproduced the input tree exactly. The code in Task 4 is that prototype. One bug surfaced during this — a false depth violation — and it was in the *fake*, which asserted a nesting level before checking whether anything occupied it; `fake_notion._depth` in Task 5 recurses only into non-empty children for that reason.
 

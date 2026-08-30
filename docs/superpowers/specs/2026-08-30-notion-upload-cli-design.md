@@ -259,20 +259,42 @@ deferred to it.
 
 ### 5.1 The inlining rule
 
-> A block may carry its `children` inline **iff** none of those children have
-> children of their own.
+> A block carries inline the **longest leading run** of its children that are
+> leaves and that fit within the per-request bounds. Everything from the first
+> child with children of its own, or the first child that would breach a
+> bound, is deferred to a wave keyed to the id the response hands back.
 
-Otherwise the block is sent childless and its children become a deferred wave,
-keyed to the id the response hands back for it.
-
-The rule follows directly from §2.7. Because a response identifies only
+The leaf condition follows from §2.7. Because a response identifies only
 top-level blocks, any block whose id we will later need to append to must
-itself appear at the top level of some request. A block with grandchildren has
-children we will need ids for; therefore those children must be top-level in a
-later request; therefore they cannot be inlined here.
+itself appear at the top level of some request. A child with children is a
+child we will need an id for; therefore it cannot be inlined.
+
+**A leading run, not an arbitrary subset.** Deferred children are *appended*
+to the parent, so they land after whatever was already inlined. Taking a
+prefix is therefore exactly what preserves document order — and it comes free,
+with no use of the `position` parameter.
 
 The payoff is that **no `GET` is ever required**. Every id the recursion needs
 arrives in a `results` array it already had to read.
+
+**The bound that is easy to miss.** The 100-children cap applies to *every*
+`children` array, not only the array at the top level of a request. An
+all-or-nothing rule — inline every child or none — emits a block with 120
+inlined children whenever no child has children of its own: one legal-looking
+request, rejected by the API. The run is therefore capped at 100 as well as by
+elements and bytes.
+
+This was found by construction, not in production: an earlier draft of this
+section used the all-or-nothing rule, and it survived review because the test
+fake validated only the request's own children array. The fake now validates
+every array at every depth (§9.1).
+
+Worked on `A` with 120 leaf children:
+
+```
+PATCH page/children      [A + 100 inlined leaves]
+PATCH A/children         [the remaining 20]        2 requests, both legal
+```
 
 Worked on `A > B₁..B₅₀`, each `Bᵢ` holding one leaf `Cᵢ`:
 
@@ -456,8 +478,14 @@ wrapping script can find it.
 ### 9.1 A constraint-enforcing fake, not a mock
 
 An in-process fake Notion that rejects exactly what Notion rejects: more than
-100 children, more than 1000 elements, more than 500 KB, more than two levels
-of nesting, an `id` on an inbound block. It assigns fresh uuids and returns
+100 entries in **any** children array at **any** depth, more than 1000
+elements, more than 500 KB, more than two levels of nesting, an `id` on an
+inbound block.
+
+The "any depth" part is load-bearing rather than thorough-for-its-own-sake. An
+earlier fake checked only the request's own children array, and that gap let
+the all-or-nothing inlining rule described in §5.1 pass review while emitting
+payloads the API would have rejected. It assigns fresh uuids and returns
 `results` in creation order. It can be instructed to answer `429` with a
 `Retry-After`, which is the only honest way to exercise the backoff path.
 
@@ -520,7 +548,9 @@ No real files leave the machine.
 | Block JSON, not the markdown endpoint | markdown media cannot name a `file_upload` id (§2.8) | the markdown endpoint, which would make nesting the server's problem and would win outright if media were external-only |
 | Distinct package, same repo | keeps the spec/plan rhythm and one corpus; neither half imports the other | a separate repo, splitting the design docs and making JSON-contract changes a two-repo dance |
 | JSON in, no pandoc subprocess | the uploader depends on nothing but Python, mirroring the Lua half's discipline; useful to any producer of block JSON | invoking pandoc internally, which would re-entangle the halves and put pandoc in the test path |
-| Inline iff no grandchildren | every id the recursion needs arrives in a `results` array; no `GET` ever (§5.1) | inline two levels and `GET` to recover ids: equal request count, more code, more failure modes |
+| Inline the longest leading run of leaf children | every id the recursion needs arrives in a `results` array; no `GET` ever (§5.1) | inline two levels and `GET` to recover ids: equal request count, more code, more failure modes |
+| A prefix, not a subset | deferred children are appended, so they land after the inlined ones; a prefix preserves order for free | arbitrary subsets plus the `position` parameter to reorder |
+| Cap the inlined run at 100 | the children cap applies to every array at every depth, not just the request's own (§5.1) | all-or-nothing inlining, which emits a 120-child array the API rejects |
 | Sequential, document order | reproducible; a partial page is the first *N* sections complete | breadth-first, leaving a whole document stripped of nested detail |
 | Split oversized blocks, warn | matches how both companion documents degrade rather than refuse | hard error, which lets one pathological block block a 400-block upload |
 | Split against bytes as well as element count | Notion caps content in characters and requests in bytes; multibyte text makes them disagree (§7.2) | element count alone, which emits a legal-looking block no request can carry |
