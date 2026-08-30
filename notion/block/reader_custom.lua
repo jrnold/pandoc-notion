@@ -129,8 +129,13 @@ local function media_reader(class)
     if upload_id then
       attributes[#attributes + 1] = { "data-file-upload-id", tostring(upload_id) }
     end
-    local color = json.color_to_ast(json.get(payload, "color"))
-    if color then attributes[#attributes + 1] = { "color", color } end
+    -- No `color` read here on purpose. Verified against the block reference:
+    -- image/video/audio/pdf/file have NO colour field -- only text-bearing
+    -- blocks do (paragraph, headings, callout, quote, list items,
+    -- table_of_contents). Reading one produced an attribute the writer could
+    -- never emit back, which reads as a silent round-trip loss. NFM's
+    -- <video color=> has no API counterpart; that asymmetry is recorded in
+    -- tests/crosspair_test.lua, not papered over here.
 
     -- NFM has no <image> tag: a plain image is `![cap](url)`, which its reader
     -- turns into an UNCLASSED Figure holding an Image. audio/video/file/pdf do
