@@ -3149,7 +3149,12 @@ local noted = writer.convert({
 -- separate run would only be re-merged on the next read.
 t.eq(noted[1].paragraph.rich_text[1].text.content, "text[1]",
      "the marker merges into the preceding run")
-t.truthy(#noted > 1, "the note body is appended as an endnote block")
+-- NOT asserted here: that the note BODY becomes an endnote block. Nothing in
+-- this task flushes richtext.notes into blocks -- that is the document entry
+-- point's job in Task 12, since only it knows when a document is complete.
+-- Task 13's degrade test asserts it end to end, through the real entry point.
+-- Collection is all this task is responsible for:
+t.eq(#require("notion.block.richtext").notes, 1, "the note body is collected for later")
 
 -- Quoted and Cite pass their content through rather than vanishing.
 t.eq(one(pandoc.Para({ pandoc.Quoted("DoubleQuote", { pandoc.Str("q") }) }))
