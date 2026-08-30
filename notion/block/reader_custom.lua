@@ -176,7 +176,9 @@ local function row_cells(row_block)
     cells:insert(pandoc.Cell(
       pandoc.Blocks({ pandoc.Plain(richtext.to_inlines(cell)) })))
   end
-  return pandoc.Row(cells)
+  -- pandoc's Row has an identifier slot, and design doc 4.1 says ids live
+  -- there. Building the Row with a default Attr silently discarded it.
+  return pandoc.Row(cells, pandoc.Attr(id_of(row_block), {}, {}))
 end
 
 reader.CUSTOM.table = function(block, payload)

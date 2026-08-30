@@ -108,7 +108,12 @@ M.NOTION_INDEX = {
   transcription     = { class = "meeting-notes",      fields = {}, children = true },
   child_page        = { class = "page",               fields = { title = "title" } },
   child_database    = { class = "database",           fields = { title = "title" } },
-  unsupported       = { class = "unknown",            fields = { block_type = "alt" } },
+  -- `fields` is deliberately empty: BOTH directions intercept `unsupported`
+  -- before the generic fields loop (reader.lua's type_name check, writer.lua's
+  -- `unknown` class branch), because block_type has to survive as `alt` on a
+  -- Div that carries no other payload. A populated map here would read like
+  -- the source of truth while the real mapping lived elsewhere.
+  unsupported       = { class = "unknown",            fields = {} },
   mention           = { class = nil,                  fields = {}, custom = true },
 
   -- irregular, hand-written (Tasks 8 and 11)

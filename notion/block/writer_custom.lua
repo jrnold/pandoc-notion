@@ -25,7 +25,8 @@ end
 local function row_block(row)
   local cells = json.arr()
   for _, cell in ipairs(row.cells or {}) do cells:insert(cell_rich_text(cell)) end
-  return writer.block("table_row", json.obj({ cells = cells }), nil)
+  -- Pass the Row itself so its identifier can be recovered under preserve_ids.
+  return writer.block("table_row", json.obj({ cells = cells }), row)
 end
 
 writer.HANDLERS.Table = function(el)
