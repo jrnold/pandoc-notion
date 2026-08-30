@@ -182,6 +182,15 @@ t.eq(code[1].t, "CodeBlock", "code becomes a CodeBlock")
 t.eq(code[1].text, "print(1)", "content is literal")
 t.eq(code[1].classes, pandoc.List({ "python" }), "language becomes the class")
 
+-- Code content is literal: newlines and indentation must survive intact.
+-- stringify() collapses LineBreak to a space, so a multi-line fixture is the
+-- only thing that catches a regression here.
+local multiline = reader.convert({ { type = "code", code = {
+  rich_text = { run("def f():\n    return 1\n") },
+  language = "python", caption = {} } } })
+t.eq(multiline[1].text, "def f():\n    return 1\n",
+     "multi-line code keeps its newlines and indentation")
+
 -- Columns.
 local cols = reader.convert({ { type = "column_list", has_children = true,
   column_list = { children = {
