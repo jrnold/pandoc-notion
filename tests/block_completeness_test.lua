@@ -73,3 +73,14 @@ for _, ntype in ipairs(DOCUMENTED_TYPES) do pinned[ntype] = true end
 for ntype in pairs(schema.NOTION_INDEX) do
   t.truthy(pinned[ntype], ntype .. " is in NOTION_INDEX and must be in the pinned list")
 end
+
+-- Third direction, and it is not redundant: reader.lua dispatches M.CUSTOM
+-- BEFORE consulting NOTION_INDEX, so a type registered only via
+-- reader.CUSTOM -- with no NOTION_INDEX entry and absent from the pinned list
+-- -- would be invisible to both loops above. That is precisely the silent miss
+-- this axis exists to prevent, so close it explicitly rather than relying on
+-- every CUSTOM key happening to carry a NOTION_INDEX placeholder.
+for ntype in pairs(reader.CUSTOM) do
+  t.truthy(pinned[ntype],
+           ntype .. " is registered in reader.CUSTOM and must be in the pinned list")
+end
