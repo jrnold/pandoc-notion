@@ -107,6 +107,26 @@ local nested = one(pandoc.Div({ pandoc.Para({ pandoc.Str("head") }),
 t.eq(#nested.callout.children, 1, "the trailing block becomes a child")
 t.eq(nested.callout.children[1].type, "paragraph", "converted normally")
 
+-- Every block from real Notion JSON carries an id, so the reader's class-less
+-- carrier Div is the common case. A list item wrapped in one must still be
+-- recognised as a to_do, with its marker stripped and its text in rich_text.
+local wrapped_todo = writer.convert({ pandoc.BulletList({
+  { pandoc.Div(pandoc.Blocks({ pandoc.Plain({
+      pandoc.Str("\u{2612}"), pandoc.Space(), pandoc.Str("done") }) }),
+      pandoc.Attr("blockid456", {}, {})) } }) })
+t.eq(wrapped_todo[1].type, "to_do", "a wrapped item is still a to_do")
+t.eq(wrapped_todo[1].to_do.checked, true, "with its checked state")
+t.eq(wrapped_todo[1].to_do.rich_text[1].text.content, "done",
+     "and its text in rich_text, marker stripped")
+t.eq(wrapped_todo[1].to_do.children, nil, "not demoted into a child block")
+
+-- A wrapped item's colour still reaches the payload.
+local wrapped_color = writer.convert({ pandoc.BulletList({
+  { pandoc.Div(pandoc.Blocks({ pandoc.Plain({ pandoc.Str("x") }) }),
+      pandoc.Attr("", {}, { { "color", "red" } })) } }) })
+t.eq(wrapped_color[1].bulleted_list_item.color, "red",
+     "the carrier Div's colour reaches the item payload")
+
 -- Design doc 4.1: id is omitted by default so output is directly postable.
 writer.set_options({ preserve_ids = false })
 t.eq(one(pandoc.Para({ pandoc.Str("x") }, pandoc.Attr("abc", {}, {}))).id, nil,
@@ -114,7 +134,19 @@ t.eq(one(pandoc.Para({ pandoc.Str("x") }, pandoc.Attr("abc", {}, {}))).id, nil,
 writer.set_options({ preserve_ids = true })
 t.eq(one(pandoc.Div({}, pandoc.Attr("abc", { "breadcrumb" }, {}))).id, "abc",
      "and emitted under the opt-in")
+
+-- preserve_ids must recover the id from the carrier, not just the colour.
+t.eq(writer.convert({ pandoc.Div(pandoc.Blocks({ pandoc.Para({ pandoc.Str("x") }) }),
+       pandoc.Attr("para-1", {}, {})) })[1].id, "para-1",
+     "preserve_ids recovers a paragraph id from the carrier Div")
+t.eq(writer.convert({ pandoc.BulletList({
+  { pandoc.Div(pandoc.Blocks({ pandoc.Plain({ pandoc.Str("x") }) }),
+      pandoc.Attr("item-1", {}, {})) } }) })[1].id, "item-1",
+     "and a list item id")
 writer.set_options({ preserve_ids = false })
+t.eq(writer.convert({ pandoc.Div(pandoc.Blocks({ pandoc.Para({ pandoc.Str("x") }) }),
+       pandoc.Attr("para-1", {}, {})) })[1].id, nil,
+     "and still omits it by default")
 
 -- Every array must be a pandoc.List, or Notion rejects it (design doc 2.1).
 t.eq(json.encode(writer.convert({})), "[]", "an empty document encodes as []")

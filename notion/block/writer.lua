@@ -34,6 +34,14 @@ function M.block(type_name, payload, element)
   return out
 end
 
+-- For blocks whose id can only be recovered from a carrier Div (see
+-- unwrap_carrier below), rather than from the element's own native Attr.
+-- Kept beside M.block so `options` stays private to this module.
+function M.apply_id(block, id)
+  if options.preserve_ids and id and id ~= "" then block.id = id end
+  return block
+end
+
 local function rich(inlines)
   return richtext.from_inlines(inlines or {})
 end
@@ -52,6 +60,21 @@ local function split_content(blocks)
   return head, rest
 end
 
+-- The reader wraps a block in a class-less Div whenever it must carry an id or
+-- a colour the block's own node type cannot hold (design doc 4.2). Every block
+-- from real Notion JSON has an id, so this wrapper is the common case rather
+-- than an edge case, and both the list-item path and the Div dispatch have to
+-- see through it.
+local function unwrap_carrier(blocks)
+  if #blocks == 1 then
+    local only = blocks[1]
+    if only.t == "Div" and #(only.classes or {}) == 0 then
+      return only.content, (only.attributes or {}).color, only.identifier
+    end
+  end
+  return blocks, nil, nil
+end
+
 -- The checkbox convention pandoc's task_lists extension defines.
 local CHECKED, UNCHECKED = "\u{2612}", "\u{2610}"
 
@@ -67,17 +90,19 @@ local function todo_state(inlines)
 end
 
 local function item_blocks(item, ordered, start_index)
-  local head, rest = split_content(item)
+  local body, wrapped_color, wrapped_id = unwrap_carrier(item)
+  local head, rest = split_content(body)
   local checked, inlines = todo_state(head)
   local type_name = ordered and "numbered_list_item"
                     or (checked ~= nil and "to_do" or "bulleted_list_item")
 
-  local payload = json.obj({ rich_text = rich(inlines or head), color = "default" })
+  local color = json.color_to_notion(wrapped_color)
+  local payload = json.obj({ rich_text = rich(inlines or head), color = color })
   if checked ~= nil then payload.checked = checked end
   if ordered and start_index then payload.list_start_index = start_index end
   local children = M.convert(rest)
   if #children > 0 then payload.children = children end
-  return M.block(type_name, payload, nil)
+  return M.apply_id(M.block(type_name, payload, nil), wrapped_id)
 end
 
 -- ---- Div class dispatch ---------------------------------------------------
@@ -107,6 +132,7 @@ local function div_handler(el)
           if type(b[b.type]) == "table" then b[b.type].color = color end
         end
       end
+      if inner[1] then M.apply_id(inner[1], el.identifier) end
       return inner
     end
     local parent = inner:remove(1)
@@ -116,6 +142,7 @@ local function div_handler(el)
     if type(parent[parent.type]) == "table" then
       parent[parent.type].children = inner
     end
+    M.apply_id(parent, el.identifier)
     return parent
   end
 
