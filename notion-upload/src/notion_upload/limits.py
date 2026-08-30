@@ -134,9 +134,18 @@ def _check_unsplittable(block: dict, lim: Limits, index: int) -> None:
 def normalize(blocks: list[dict], lim: Limits) -> tuple[list[dict], list[str]]:
     """Merge, split, and recurse. Returns new blocks and warnings.
 
-    Guarantee on return: every childless block fits alone inside byte_budget,
-    which is what makes the planner's packing total (spec 5.2).
+    Deep-copies once at entry so the result shares no mutable state with
+    the caller's tree - callers rewrite media file objects in the returned
+    blocks, and that must never reach back into the input.
+
+    Guarantee on return: every childless block fits alone inside
+    byte_budget, which is what makes the planner's packing total.
     """
+    return _normalize(document.deep_copy(blocks), lim)
+
+
+def _normalize(blocks: list[dict], lim: Limits) -> tuple[list[dict], list[str]]:
+    """Recursive worker behind normalize; see its docstring for the contract."""
     out: list[dict] = []
     warnings: list[str] = []
 
@@ -168,7 +177,7 @@ def normalize(blocks: list[dict], lim: Limits) -> tuple[list[dict], list[str]]:
                 )
 
         if kids:
-            normalized_kids, child_warnings = normalize(kids, lim)
+            normalized_kids, child_warnings = _normalize(kids, lim)
             warnings.extend(child_warnings)
             # Children belong to the first piece; the rest are continuations.
             pieces[0] = document.with_children(pieces[0], normalized_kids)

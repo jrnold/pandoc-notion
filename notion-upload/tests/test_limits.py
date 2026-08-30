@@ -99,6 +99,19 @@ def test_normalize_errors_on_an_equation_too_long_to_split():
     assert "equation" in str(exc.value)
 
 
+def test_normalize_output_shares_no_mutable_state_with_its_input():
+    """The output must be safe to mutate. Callers rewrite media file
+    objects in the returned blocks; if those aliased the input, the
+    caller's tree would be corrupted behind its back."""
+    src = [block("paragraph", [rt("short")])]
+    out, _ = limits.normalize(src, limits.DEFAULT)
+    assert runs_of(out[0])[0] is not runs_of(src[0])[0]
+    assert document.payload(out[0]) is not document.payload(src[0])
+    # Mutating the result must leave the input untouched.
+    runs_of(out[0])[0]["text"]["content"] = "CHANGED"
+    assert runs_of(src[0])[0]["text"]["content"] == "short"
+
+
 def test_normalize_errors_on_an_over_long_url():
     b = {"object": "block", "type": "image",
          "image": {"type": "external", "external": {"url": "https://e.com/" + "a" * 2100}}}
