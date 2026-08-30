@@ -1893,8 +1893,9 @@ local todo = reader.convert({
   { type = "to_do", to_do = { rich_text = { run("task") }, checked = false } },
   { type = "to_do", to_do = { rich_text = { run("done") }, checked = true } } })
 t.eq(todo[1].t, "BulletList", "to_do items are bullets")
-t.eq(pandoc.utils.stringify(todo[1].content[1]):sub(1, 1), "\9744", "unchecked is U+2610")
-t.eq(pandoc.utils.stringify(todo[1].content[2]):sub(1, 1), "\9746", "checked is U+2612")
+-- U+2610/U+2612 are three bytes each in UTF-8, so compare three bytes, not one.
+t.eq(pandoc.utils.stringify(todo[1].content[1]):sub(1, 3), "\u{2610}", "unchecked is U+2610")
+t.eq(pandoc.utils.stringify(todo[1].content[2]):sub(1, 3), "\u{2612}", "checked is U+2612")
 
 -- Code.
 local code = reader.convert({ { type = "code",
@@ -2094,7 +2095,7 @@ end
 function reader.list_item(block, type_name, payload)
   local inlines = inlines_of(payload)
   if type_name == "to_do" then
-    local mark = json.get(payload, "checked") == true and "\9746" or "\9744"
+    local mark = json.get(payload, "checked") == true and "\u{2612}" or "\u{2610}"
     inlines = pandoc.Inlines({ pandoc.Str(mark), pandoc.Space() }) .. inlines
   end
   local body = pandoc.Blocks({ pandoc.Plain(inlines) })
@@ -2224,7 +2225,7 @@ reader.CUSTOM.table = function(block, payload)
     pandoc.Caption(pandoc.Blocks({})),
     colspecs,
     pandoc.TableHead(head_rows),
-    { pandoc.TableBody(rows, row_head_columns) },
+    { pandoc.TableBody(rows, {}, row_head_columns, pandoc.Attr()) },
     pandoc.TableFoot(),
     pandoc.Attr(id_of(block), {}, {}))
 end
@@ -2600,8 +2601,8 @@ t.eq(ordered[1].numbered_list_item.list_start_index, 5, "start becomes list_star
 
 -- The checkbox convention becomes a to_do, with the marker stripped.
 local todos = writer.convert({ pandoc.BulletList({
-  { pandoc.Plain({ pandoc.Str("\9744"), pandoc.Space(), pandoc.Str("task") }) },
-  { pandoc.Plain({ pandoc.Str("\9746"), pandoc.Space(), pandoc.Str("done") }) } }) })
+  { pandoc.Plain({ pandoc.Str("\u{2610}"), pandoc.Space(), pandoc.Str("task") }) },
+  { pandoc.Plain({ pandoc.Str("\u{2612}"), pandoc.Space(), pandoc.Str("done") }) } }) })
 t.eq(todos[1].type, "to_do", "an unchecked marker makes a to_do")
 t.eq(todos[1].to_do.checked, false, "unchecked")
 t.eq(todos[1].to_do.rich_text[1].text.content, "task", "the marker is stripped from the text")
@@ -2741,7 +2742,7 @@ local function split_content(blocks)
 end
 
 -- The checkbox convention pandoc's task_lists extension defines.
-local CHECKED, UNCHECKED = "\9746", "\9744"
+local CHECKED, UNCHECKED = "\u{2612}", "\u{2610}"
 
 local function todo_state(inlines)
   local first = inlines and inlines[1] or nil
@@ -3036,7 +3037,7 @@ local tbl = one(pandoc.Table(
     pandoc.Cell({ pandoc.Plain({ pandoc.Str("Owner") }) }) }) }),
   { pandoc.TableBody({ pandoc.Row({
     pandoc.Cell({ pandoc.Plain({ pandoc.Str("Doing") }) }),
-    pandoc.Cell({ pandoc.Plain({ pandoc.Str("Ada") }) }) }) }, 0) },
+    pandoc.Cell({ pandoc.Plain({ pandoc.Str("Ada") }) }) }) }, {}, 0) },
   pandoc.TableFoot()))
 t.eq(tbl.type, "table", "Table becomes table")
 t.eq(tbl.table.table_width, 2, "table_width comes from the colspecs")
@@ -3051,7 +3052,7 @@ local rh = one(pandoc.Table(
   pandoc.Caption(pandoc.Blocks({})), { { pandoc.AlignDefault, nil } },
   pandoc.TableHead({}),
   { pandoc.TableBody({ pandoc.Row({
-      pandoc.Cell({ pandoc.Plain({ pandoc.Str("x") }) }) }) }, 1) },
+      pandoc.Cell({ pandoc.Plain({ pandoc.Str("x") }) }) }) }, {}, 1) },
   pandoc.TableFoot()))
 t.eq(rh.table.has_row_header, true, "row_head_columns sets has_row_header")
 t.eq(rh.table.has_column_header, false, "an empty head means no column header")
@@ -3121,7 +3122,7 @@ local nested_cell = one(pandoc.Table(
   pandoc.Caption(pandoc.Blocks({})), { { pandoc.AlignDefault, nil } },
   pandoc.TableHead({}),
   { pandoc.TableBody({ pandoc.Row({ pandoc.Cell({
-      pandoc.Para({ pandoc.Str("a") }), pandoc.Para({ pandoc.Str("b") }) }) }) }, 0) },
+      pandoc.Para({ pandoc.Str("a") }), pandoc.Para({ pandoc.Str("b") }) }) }) }, {}, 0) },
   pandoc.TableFoot()))
 t.eq(nested_cell.table.children[1].table_row.cells[1][1].text.content, "a b",
      "a multi-block cell is flattened to rich text")
