@@ -2113,8 +2113,22 @@ end
 
 -- ---- code -----------------------------------------------------------------
 
+-- Code content is assembled from the RAW run text, never via to_inlines +
+-- stringify. to_inlines turns embedded newlines into LineBreak nodes and
+-- stringify collapses each LineBreak into a single space, which silently
+-- destroys the line structure and indentation of every multi-line code block
+-- ("def f():\n    return 1" becomes "def f():  return 1").
+local function raw_text(rich_text)
+  local parts = {}
+  for _, run in ipairs(rich_text or {}) do
+    local content = json.get(json.get(run, "text") or {}, "content")
+    parts[#parts + 1] = tostring(content or json.get(run, "plain_text") or "")
+  end
+  return table.concat(parts)
+end
+
 reader.CUSTOM.code = function(block, payload)
-  local text = pandoc.utils.stringify(inlines_of(payload))
+  local text = raw_text(json.get(payload, "rich_text"))
   local language = json.get(payload, "language")
   local classes = {}
   if language and language ~= "plain text" then classes[1] = tostring(language) end
