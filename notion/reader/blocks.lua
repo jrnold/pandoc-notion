@@ -422,6 +422,12 @@ end
 -- single Table block, so it returns nil and the caller falls through to
 -- ordinary per-line paragraph handling -- this must never crash and never
 -- silently swallow such a line.
+-- Returns the Table and the index just past the run, or nil when `nodes[i]`
+-- does not begin a pipe table. The two results are correlated: a non-nil first
+-- result always comes with a non-nil second. Stating that here is what lets a
+-- checker see `i = after` as safe inside `if pipe_table then`.
+---@return table|nil tbl   the parsed Table, or nil if this is not a pipe table
+---@return integer|nil next_index  index just past the run; non-nil iff tbl is
 local function pipe_table_run(nodes, i)
   if nodes[i].kind ~= "text" or not nodes[i].text:match("^|") then
     return nil
@@ -486,6 +492,7 @@ convert = function(nodes)
 
     if pipe_table then
       out:insert(pipe_table)
+      ---@cast after integer  -- correlated with pipe_table; see pipe_table_run
       i = after
     else
       local kind = nil

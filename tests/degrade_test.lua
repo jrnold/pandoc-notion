@@ -64,6 +64,7 @@ do
   local quiet = io.popen(
     string.format("printf 'Term\\n:   Def.\\n' | pandoc -f markdown -t %q 2>&1 >/dev/null",
                   nfm.ROOT .. "/notion-markdown-writer.lua"), "r")
+  ---@cast quiet file*  -- io.popen returns file|nil; a nil here fails the test anyway
   local quiet_err = quiet:read("a")
   quiet:close()
   t.eq(quiet_err, "", "approximation logs nothing at default verbosity")

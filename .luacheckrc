@@ -58,4 +58,8 @@ files["tests/**/*.lua"] = {
   ignore = { "411", "421", "431", "432" },
 }
 
-exclude_files = { ".superpowers/**" }
+-- types/ holds LuaLS definition stubs (---@meta): comments only, never
+-- loaded at runtime, and they intentionally assign to pandoc globals.
+-- types/ holds vendored LuaLS definition stubs (---@meta): comments only,
+-- never loaded at runtime, and third-party code we do not lint.
+exclude_files = { ".superpowers/**", "types/**" }

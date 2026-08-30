@@ -174,7 +174,13 @@ t.eq(wrapped_color[1].bulleted_list_item.color, "red",
 
 -- Design doc 4.1: id is omitted by default so output is directly postable.
 writer.set_options({ preserve_ids = false })
-t.eq(one(pandoc.Para({ pandoc.Str("x") }, pandoc.Attr("abc", {}, {}))).id, nil,
+-- Para has no Attr slot, so an id can only reach the writer via the reader's
+-- carrier Div -- the same shape the preserve_ids test below uses. An earlier
+-- version passed an Attr straight to pandoc.Para, which silently discards it,
+-- so this assertion was checking a block that never had an id. Found by the
+-- LuaCATS annotations.
+t.eq(one(pandoc.Div(pandoc.Blocks({ pandoc.Para({ pandoc.Str("x") }) }),
+                    pandoc.Attr("abc", {}, {}))).id, nil,
      "id is omitted by default")
 writer.set_options({ preserve_ids = true })
 t.eq(one(pandoc.Div({}, pandoc.Attr("abc", { "breadcrumb" }, {}))).id, "abc",
@@ -210,7 +216,7 @@ require "notion.block.writer_custom"
 -- entry point needed.
 local function count_logs(fn)
   local real, n = pandoc.log.info, 0
-  pandoc.log.info = function() n = n + 1 end
+  pandoc.log.info = function(...) local _ = ...; n = n + 1 end
   local ok, err = pcall(fn)
   pandoc.log.info = real
   if not ok then error(err) end

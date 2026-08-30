@@ -24,6 +24,7 @@ blocks, page = env.unwrap({
 })
 t.eq(#blocks, 1, "page object yields its children")
 t.truthy(page ~= nil, "page object is returned for property extraction")
+---@cast page table  -- narrowed by the assertion above
 t.truthy(page.properties ~= nil, "the properties map survives")
 
 -- A page with no children is legal and yields no blocks.

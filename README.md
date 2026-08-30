@@ -104,6 +104,18 @@ Optional, and the only tool outside pandoc this repo mentions — the test
 suite itself still has zero dependencies. `brew install luacheck`, or
 `luarocks install luacheck`.
 
+### Type checking
+
+```bash
+lua-language-server --check . --checklevel=Warning
+```
+
+Also optional. `brew install lua-language-server`. Type information comes from
+LuaCATS annotations in `types/pandoc-annotations/` — comments only, so they have
+no effect on `pandoc lua`. See that directory's README for provenance.
+
+### Configuration
+
 `.luacheckrc` declares pandoc's globals as read-only. That list was enumerated
 from the interpreter rather than copied from documentation:
 

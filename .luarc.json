@@ -1,0 +1,19 @@
+{
+  "$schema": "https://raw.githubusercontent.com/LuaLS/vscode-lua/master/setting/schema.json",
+  "runtime.version": "Lua 5.4",
+  "workspace.library": [
+    "types/pandoc-annotations"
+  ],
+  "workspace.ignoreDir": [
+    ".superpowers",
+    "tests/corpus",
+    "tests/golden"
+  ],
+  "diagnostics.globals": [
+    "Reader",
+    "Writer"
+  ],
+  "diagnostics.disable": [
+    "lowercase-global"
+  ]
+}

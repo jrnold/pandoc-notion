@@ -346,6 +346,7 @@ do
   pandoc.read = real_read2
 
   t.truthy(captured ~= nil, "table with colgroup still primes at least the cell texts")
+  ---@cast captured string  -- narrowed by the assertion above
   t.truthy(captured:find("<colgroup>", 1, true) == nil,
            "gather() does not prime the never-looked-up '<colgroup>' chunk")
   t.truthy(captured:find("<tr>", 1, true) == nil,

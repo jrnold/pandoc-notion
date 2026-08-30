@@ -86,7 +86,7 @@ t.eq(#reader.convert({}), 0, "an empty array yields no blocks")
 -- count_logs.
 local function count_warns(fn)
   local real, n = pandoc.log.warn, 0
-  pandoc.log.warn = function() n = n + 1 end
+  pandoc.log.warn = function(...) local _ = ...; n = n + 1 end
   local ok, err = pcall(fn)
   pandoc.log.warn = real
   if not ok then error(err) end
