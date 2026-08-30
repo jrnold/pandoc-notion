@@ -508,7 +508,8 @@ rather than fatal, matching the companion document's §6.5:
 | condition | behavior |
 |---|---|
 | unknown `type` string | `Div ("",{"unknown"},{alt=type})` (§6.4) |
-| missing `type`, or payload key absent | skipped, `pandoc.log.warn` with the id |
+| missing `type` | skipped, `pandoc.log.warn` with the id |
+| payload key absent | emitted as an empty block of its declared type, `pandoc.log.warn` with the id |
 | `null` where an object was expected | treated as absent, via the §2.4 guard |
 | `has_children` without `children` | empty body, `pandoc.log.info` (§6.3) |
 
