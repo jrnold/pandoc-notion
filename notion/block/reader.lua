@@ -135,18 +135,54 @@ function M.convert_block(block)
   return pandoc.Div(content, M.attr_for(block, def, payload))
 end
 
+-- Notion emits list items as a flat run of sibling blocks; pandoc wants one
+-- list node holding many items. Group consecutive runs before dispatch.
+local BULLET_TYPES  = { bulleted_list_item = true, to_do = true }
+local ORDERED_TYPES = { numbered_list_item = true }
+
 function M.convert(blocks)
   local out = pandoc.Blocks({})
-  for _, block in ipairs(blocks or {}) do
-    if type(block) == "table" then
-      local converted = M.convert_block(block)
-      if converted then
-        if pandoc.utils.type(converted) == "Blocks" then
-          out = out .. converted
-        else
-          out:insert(converted)
+  local list = blocks or {}
+  local i = 1
+
+  local function append(converted)
+    if converted == nil then return end
+    if pandoc.utils.type(converted) == "Blocks" then
+      out = out .. converted
+    else
+      out:insert(converted)
+    end
+  end
+
+  while i <= #list do
+    local block = list[i]
+    local type_name = type(block) == "table" and json.get(block, "type") or nil
+
+    if type_name and (BULLET_TYPES[type_name] or ORDERED_TYPES[type_name]) then
+      local ordered = ORDERED_TYPES[type_name] ~= nil
+      local family  = ordered and ORDERED_TYPES or BULLET_TYPES
+      local items, start_index = {}, nil
+      while i <= #list do
+        local candidate = list[i]
+        local ctype = type(candidate) == "table" and json.get(candidate, "type") or nil
+        if not (ctype and family[ctype]) then break end
+        local payload = json.get(candidate, ctype) or {}
+        if ordered and start_index == nil then
+          local s = json.get(payload, "list_start_index")
+          if s then start_index = math.tointeger(s) or s end
         end
+        items[#items + 1] = M.list_item(candidate, ctype, payload)
+        i = i + 1
       end
+      if ordered then
+        append(pandoc.OrderedList(items,
+          pandoc.ListAttributes(start_index or 1, "Decimal", "Period")))
+      else
+        append(pandoc.BulletList(items))
+      end
+    else
+      if type(block) == "table" then append(M.convert_block(block)) end
+      i = i + 1
     end
   end
   return out

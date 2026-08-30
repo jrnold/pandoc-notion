@@ -116,3 +116,136 @@ t.eq(reader.convert({ { type = "bookmark",
      "https://e.com", "bookmark carries its url")
 t.eq(reader.convert({ { type = "breadcrumb", breadcrumb = {} } })[1].classes,
      pandoc.List({ "breadcrumb" }), "breadcrumb")
+
+-- ---- irregular types (Task 8) ----
+require "notion.block.reader_custom"
+
+-- Headings, including heading_4, which the API really does have.
+for level = 1, 4 do
+  local h = reader.convert({ { type = "heading_" .. level,
+    ["heading_" .. level] = { rich_text = { run("H") } } } })
+  t.eq(h[1].t, "Header", "heading_" .. level .. " is a Header")
+  t.eq(h[1].level, level, "heading_" .. level .. " keeps its level")
+end
+
+-- A toggle heading with no children needs no wrapper: the flag has a native
+-- home on the Header's own Attr.
+local toggle_h = reader.convert({ { type = "heading_2",
+  heading_2 = { rich_text = { run("H") }, is_toggleable = true } } })
+t.eq(toggle_h[1].t, "Header", "a childless toggle heading stays a Header")
+t.eq(toggle_h[1].attributes.toggle, "true", "and carries toggle=true")
+
+-- With children it needs the wrapper, since a Header cannot contain blocks.
+local toggle_kids = reader.convert({ { type = "heading_2", has_children = true,
+  heading_2 = { rich_text = { run("H") }, is_toggleable = true,
+                children = { { type = "paragraph", paragraph = { rich_text = { run("k") } } } } } } })
+t.eq(toggle_kids[1].classes, pandoc.List({ "toggle-heading" }), "wrapped in toggle-heading")
+t.eq(toggle_kids[1].content[1].t, "Header", "the Header is the first child")
+
+-- Consecutive list items group into ONE list.
+local bullets = reader.convert({
+  { type = "bulleted_list_item", bulleted_list_item = { rich_text = { run("a") } } },
+  { type = "bulleted_list_item", bulleted_list_item = { rich_text = { run("b") } } } })
+t.eq(#bullets, 1, "two adjacent bullets make one list")
+t.eq(bullets[1].t, "BulletList", "of type BulletList")
+t.eq(#bullets[1].content, 2, "with two items")
+
+local numbers = reader.convert({
+  { type = "numbered_list_item", numbered_list_item = { rich_text = { run("a") } } },
+  { type = "numbered_list_item", numbered_list_item = { rich_text = { run("b") } } } })
+t.eq(numbers[1].t, "OrderedList", "numbered items make an OrderedList")
+
+-- A non-list block breaks the run.
+local split = reader.convert({
+  { type = "bulleted_list_item", bulleted_list_item = { rich_text = { run("a") } } },
+  { type = "divider", divider = {} },
+  { type = "bulleted_list_item", bulleted_list_item = { rich_text = { run("b") } } } })
+t.eq(#split, 3, "a divider splits the run into two lists")
+
+-- list_start_index becomes the OrderedList start.
+local started = reader.convert({ { type = "numbered_list_item",
+  numbered_list_item = { rich_text = { run("a") }, list_start_index = 5 } } })
+t.eq(started[1].listAttributes.start, 5, "list_start_index becomes start")
+
+-- to_do uses the checkbox convention pandoc's task_lists extension defines.
+local todo = reader.convert({
+  { type = "to_do", to_do = { rich_text = { run("task") }, checked = false } },
+  { type = "to_do", to_do = { rich_text = { run("done") }, checked = true } } })
+t.eq(todo[1].t, "BulletList", "to_do items are bullets")
+t.eq(pandoc.utils.stringify(todo[1].content[1]):sub(1, 3), "\u{2610}", "unchecked is U+2610")
+t.eq(pandoc.utils.stringify(todo[1].content[2]):sub(1, 3), "\u{2612}", "checked is U+2612")
+
+-- Code.
+local code = reader.convert({ { type = "code",
+  code = { rich_text = { run("print(1)") }, language = "python", caption = {} } } })
+t.eq(code[1].t, "CodeBlock", "code becomes a CodeBlock")
+t.eq(code[1].text, "print(1)", "content is literal")
+t.eq(code[1].classes, pandoc.List({ "python" }), "language becomes the class")
+
+-- Columns.
+local cols = reader.convert({ { type = "column_list", has_children = true,
+  column_list = { children = {
+    { type = "column", column = { children = {
+        { type = "paragraph", paragraph = { rich_text = { run("L") } } } } } },
+    { type = "column", column = { width_ratio = 0.5, children = {
+        { type = "paragraph", paragraph = { rich_text = { run("R") } } } } } } } } } })
+t.eq(cols[1].classes, pandoc.List({ "columns" }), "column_list is the columns Div")
+t.eq(cols[1].content[1].classes, pandoc.List({ "column" }), "each child is a column")
+t.eq(cols[1].content[2].attributes["width-ratio"], "0.5", "width_ratio is carried")
+
+-- Media: the URL goes on the inner Link, matching the NFM golden exactly.
+local vid = reader.convert({ { type = "video",
+  video = { type = "external", external = { url = "https://e.com/v.mp4" },
+            caption = { run("Video caption") } } } })
+t.eq(vid[1].t, "Figure", "video is a Figure")
+t.eq(vid[1].classes, pandoc.List({ "video" }), "with its type class")
+t.eq(pandoc.utils.stringify(vid[1].caption), "Video caption", "caption is populated")
+local link = vid[1].content[1].content[1]
+t.eq(link.t, "Link", "the body is a Link")
+t.eq(link.target, "https://e.com/v.mp4", "carrying the URL")
+t.eq(vid[1].attributes.src, nil, "src is NOT duplicated onto the Figure")
+
+-- A Notion-hosted file uses .file.url; expiry_time is dropped.
+local hosted = reader.convert({ { type = "image",
+  image = { type = "file", file = { url = "https://s3/i.png",
+                                    expiry_time = "2026-08-29T00:00:00Z" },
+            caption = {} } } })
+t.eq(hosted[1].content[1].content[1].target, "https://s3/i.png", "file.url is used")
+t.eq(hosted[1].attributes.expiry_time, nil, "expiry_time is dropped")
+
+-- A file_upload has no URL at all.
+local upload = reader.convert({ { type = "pdf",
+  pdf = { type = "file_upload", file_upload = { id = "up-1" }, caption = {} } } })
+t.eq(upload[1].attributes["data-file-upload-id"], "up-1", "the upload id is kept")
+
+-- Tables.
+local tbl = reader.convert({ { type = "table", has_children = true,
+  table = { table_width = 2, has_column_header = true, has_row_header = false,
+    children = {
+      { type = "table_row", table_row = { cells = { { run("Status") }, { run("Owner") } } } },
+      { type = "table_row", table_row = { cells = { { run("In progress") }, { run("Ada") } } } } } } } })
+t.eq(tbl[1].t, "Table", "table becomes a Table")
+t.eq(#tbl[1].colspecs, 2, "table_width becomes the colspec count")
+t.eq(#tbl[1].head.rows, 1, "has_column_header moves the first row into the head")
+t.eq(#tbl[1].bodies[1].body, 1, "leaving one row in the body")
+
+local tbl_norow = reader.convert({ { type = "table", has_children = true,
+  table = { table_width = 1, has_column_header = false, has_row_header = true,
+    children = { { type = "table_row", table_row = { cells = { { run("x") } } } } } } } })
+t.eq(#tbl_norow[1].head.rows, 0, "without has_column_header the head is empty")
+t.eq(tbl_norow[1].bodies[1].row_head_columns, 1, "has_row_header sets row_head_columns")
+
+-- Synced blocks: one Notion type, two AST classes, decided by synced_from.
+local original = reader.convert({ { type = "synced_block",
+  synced_block = { synced_from = pandoc.json.null, children = {} } } })
+t.eq(original[1].classes, pandoc.List({ "synced-block" }), "null synced_from is the original")
+local reference = reader.convert({ { type = "synced_block",
+  synced_block = { synced_from = { type = "block_id", block_id = "b-1" }, children = {} } } })
+t.eq(reference[1].classes, pandoc.List({ "synced-block-reference" }), "a set synced_from is a reference")
+t.eq(reference[1].attributes.url, "b-1", "carrying the source block id")
+
+-- A block-level mention.
+local bm = reader.convert({ { type = "mention",
+  mention = { type = "page", page = { id = "p-9" } } } })
+t.eq(bm[1].t, "Para", "a mention block is a Para")
+t.eq(bm[1].content[1].classes, pandoc.List({ "mention", "mention-page" }), "holding a mention Span")
