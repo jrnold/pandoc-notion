@@ -76,7 +76,14 @@ function M.convert_block(block)
     return nil
   end
   type_name = tostring(type_name)
-  local payload = json.get(block, type_name) or {}
+  local payload = json.get(block, type_name)
+  if payload == nil then
+    -- design doc 6.5: the block's position is preserved by emitting it empty,
+    -- but a malformed payload must not pass silently.
+    pandoc.log.warn("Block of type " .. type_name .. " has no payload: " ..
+                    tostring(json.get(block, "id") or "<no id>"))
+    payload = {}
+  end
 
   local custom = M.CUSTOM[type_name]
   if custom then return custom(block, payload) end

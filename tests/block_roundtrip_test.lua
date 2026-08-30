@@ -9,7 +9,11 @@ local KNOWN_NOT_BYTE_IDENTICAL = {
   ["nulls.json"]        = "carries id and parent, which are dropped by design",
   ["has-children.json"] = "list-response envelope is normalized to a bare array",
   ["media-hosted.json"] = "expiry_time is dropped; file becomes external",
-  ["all-types.json"]    = "page properties are read-only (design doc 4.6)",
+  ["all-types.json"]    = "page properties are read-only (design doc 4.6); its " ..
+                          "\"Unrecognized\" property (type unique_id, which has " ..
+                          "no §4.6 row or DISPATCH entry) deliberately exercises " ..
+                          "the unrecognized-property-type fallback, skipped with " ..
+                          "a pandoc.log.info rather than a crash",
 
   ["meeting-notes.json"] = "transcription reads into the same Div class as " ..
                            "meeting_notes (design doc 4.3), so it writes back " ..
@@ -21,11 +25,14 @@ local KNOWN_NOT_BYTE_IDENTICAL = {
                            "normalized on write to carry both, since the " ..
                            "AST -> JSON direction collapses many encodings " ..
                            "into one (design doc 2.7)",
-  ["unknown-type.json"]  = "an unrecognized block type degrades to unsupported " ..
-                           "by design (design doc 8)",
-  ["missing-payload.json"] = "a block missing its payload key degrades to an " ..
-                             "empty block of its declared type rather than " ..
-                             "crashing (design doc 8)",
+  ["unknown-type.json"]  = "an unrecognized block type degrades to a visible " ..
+                           "unknown block rather than vanishing or crashing " ..
+                           "(design doc 6.4)",
+  ["missing-payload.json"] = "a block whose payload key is genuinely absent " ..
+                             "still occupies its position: it comes back as an " ..
+                             "empty block of its declared type, with a " ..
+                             "pandoc.log.warn so the recovery isn't silent " ..
+                             "(design doc 6.5)",
 }
 
 local function basename(path) return path:match("([^/\\]+)$") end

@@ -160,7 +160,7 @@
                 "name": "Bob"
             }
         },
-        "Serial": {
+        "Unrecognized": {
             "type": "unique_id",
             "unique_id": {
                 "number": 1

@@ -80,6 +80,26 @@ t.eq(#reader.convert({ { type = "paragraph" } }), 1,
      "a missing payload still yields an (empty) block")
 t.eq(#reader.convert({}), 0, "an empty array yields no blocks")
 
+-- The block's position is preserved silently, but an absent payload key must
+-- not pass without a trace -- pandoc.log.warn is a plain function on a table,
+-- so it can be counted in-process, same pattern as block_writer_test's
+-- count_logs.
+local function count_warns(fn)
+  local real, n = pandoc.log.warn, 0
+  pandoc.log.warn = function() n = n + 1 end
+  local ok, err = pcall(fn)
+  pandoc.log.warn = real
+  if not ok then error(err) end
+  return n
+end
+
+t.eq(count_warns(function() reader.convert({ { type = "paragraph" } }) end), 1,
+     "a genuinely absent payload key warns")
+t.eq(count_warns(function()
+       reader.convert({ { type = "divider", divider = {} } })
+     end), 0,
+     "a present-but-empty payload object ({}) is not mistaken for an absent one")
+
 -- Design doc 6.3: unhydrated input is emitted with an empty body, not an error.
 local unhydrated = reader.convert({
   { type = "callout", has_children = true, id = "u-1",
