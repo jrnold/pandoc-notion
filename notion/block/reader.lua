@@ -113,6 +113,15 @@ function M.convert_block(block)
   local kids    = def.children and M.convert(M.children_of(block, payload)) or nil
 
   if type_name == "paragraph" then
+    -- A paragraph with no text and no children is an empty paragraph, which
+    -- this AST already has a node for: the one NFM's reader builds for
+    -- <empty-block/>. Using the same node is what lets an empty paragraph
+    -- survive a round trip through either format (NFM strips blank lines, so
+    -- a bare empty Para would simply disappear on the way out).
+    if (not inlines or #inlines == 0) and (not kids or #kids == 0) then
+      return pandoc.Div(pandoc.Blocks({}),
+                        pandoc.Attr(id and tostring(id) or "", { "empty-block" }, {}))
+    end
     local para = pandoc.Para(inlines or {})
     if kids and #kids > 0 then
       return pandoc.Div(pandoc.Blocks({ para }) .. kids,

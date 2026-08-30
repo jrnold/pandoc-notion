@@ -1,1 +1,3 @@
-Pandoc Meta { unMeta = fromList [] } [ Para [] ]
+Pandoc
+  Meta { unMeta = fromList [] }
+  [ Div ( "" , [ "empty-block" ] , [] ) [] ]

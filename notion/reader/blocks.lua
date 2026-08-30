@@ -242,7 +242,18 @@ local function block_for(node)
     if def then
       local kids = children_of(node)
       if kind == "tag_inline" then
-        kids = pandoc.Blocks({ pandoc.Plain(inlines.read(leaf_text(node))) })
+        -- `<tag></tag>` written on ONE line has no body. Emitting Plain [] for
+        -- it made an empty container read differently from the same container
+        -- written across two lines (which yields no child at all), and the
+        -- writer renders those two ASTs as two different texts -- an
+        -- f(f(x)) ~= f(x) cycle alternating between the collapsed and expanded
+        -- forms. An empty body is no content, however it was spelled.
+        local body = leaf_text(node)
+        if body and body ~= "" then
+          kids = pandoc.Blocks({ pandoc.Plain(inlines.read(body)) })
+        else
+          kids = pandoc.Blocks({})
+        end
       end
       return pandoc.Div(kids, attr_of(node, { def.class }))
     end

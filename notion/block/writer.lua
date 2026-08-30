@@ -184,6 +184,16 @@ local function div_handler(el)
       synced_from = from, children = M.convert(el.content) }), el)
   end
 
+  -- NFM's <empty-block/> IS an empty paragraph -- per NFM's own spec it is the
+  -- only way to spell one, since blank lines are stripped. Notion's equivalent
+  -- is a paragraph with empty rich_text. Without this the class fell through to
+  -- the unrecognized-class path, was unwrapped to its (empty) content, and the
+  -- block vanished entirely.
+  if class == "empty-block" then
+    return M.block("paragraph",
+                   json.obj({ rich_text = json.arr(), color = "default" }), el)
+  end
+
   if class == "unknown" then
     return M.block("unsupported", json.obj({
       block_type = el.attributes.alt or "unsupported" }), el)

@@ -22,8 +22,15 @@ local KNOWN_LOSSY_DETOUR = {
   -- field for -- the mirror of the asymmetry design doc 4.3 documents in the
   -- other direction, where the API's type set is larger than NFM's. Each names
   -- the specific missing field, not "formatting differs".
-  ["empty-block.nfm"] =
-    "<empty-block/> spells an empty paragraph; Notion has no such block type",
+  --
+  -- This list started at 10 and is down to 6: the other four turned out to be
+  -- defects rather than asymmetries (image URLs dropped, toggle titles demoted,
+  -- child_page/child_database titles omitted, citations silently deleted), and
+  -- two more were fixed afterwards -- date mentions now carry startTime and
+  -- timeZone through the ISO string and the API's time_zone field, and
+  -- <empty-block/> now maps to the empty paragraph that is its exact Notion
+  -- equivalent. Prefer fixing to listing: an entry here is a claim that the
+  -- loss is unavoidable, and four such claims were wrong.
   ["page-database.nfm"] =
     "child_page/child_database carry only `title`; NFM's url= and inline= have no API field",
   ["synced-block.nfm"] =
@@ -32,8 +39,6 @@ local KNOWN_LOSSY_DETOUR = {
     "`unsupported` carries only block_type; NFM's <unknown url=> has no API field",
   ["image-attributes.nfm"] =
     "Notion's image block has no color field; NFM's {color=} has nowhere to go",
-  ["mentions.nfm"] =
-    "a date mention carries start/end only; NFM's startTime= and timeZone= have no API field",
   ["emoji.nfm"] =
     "Notion stores the emoji character, not the :shortcode:, so it returns as the character",
   ["citation.nfm"] =
@@ -68,33 +73,20 @@ end
 -- nfm.list() returns an empty table for a missing or misnamed directory, so a
 -- vanished corpus would make every loop above pass vacuously. Assert the count.
 t.eq(checked, 39, "every NFM fixture was detoured, checked " .. checked)
-t.eq(detoured, 8, "the lossy-detour list did not grow silently, detoured " .. detoured)
+t.eq(detoured, 6, "the lossy-detour list did not grow silently, detoured " .. detoured)
 
 -- The reverse direction: JSON -> AST -> NFM -> AST -> JSON. Asserted for
 -- STABILITY only, never equality. NFM's vocabulary is strictly smaller than the
 -- block API's, so bookmark, embed, breadcrumb and friends genuinely cannot
 -- survive a detour through it -- that asymmetry is by design (design doc 4.3),
 -- not a defect.
--- Fixtures whose reverse detour is unstable for a reason that lives in the NFM
--- pair, not this one. Verified directly: feeding
---   <synced_block_reference url="b-9"></synced_block_reference>
--- through the NFM reader/writer ALONE alternates between the collapsed
--- one-line form and an expanded three-line form, so an empty container gains
--- and loses an empty paragraph on alternating passes. That is a pre-existing
--- NFM round-trip defect; the block pair only surfaces it.
-local NFM_EMPTY_CONTAINER_INSTABILITY = {
-  ["synced-reference.json"] =
-    "empty container is unstable in the NFM pair itself; pre-existing, not a block-JSON defect",
-}
 
 local json_checked = 0
 for _, path in ipairs(bj.list("blocks")) do
   local source = bj.read_file(path)
   json_checked = json_checked + 1
-  if not NFM_EMPTY_CONTAINER_INSTABILITY[basename(path)] then
-    local detour = bj.from_nfm(bj.to_nfm(source))
-    t.eq(bj.to_json(bj.from_nfm(bj.to_nfm(detour))), bj.to_json(detour),
-         basename(path) .. " is stable through the NFM detour")
-  end
+  local detour = bj.from_nfm(bj.to_nfm(source))
+  t.eq(bj.to_json(bj.from_nfm(bj.to_nfm(detour))), bj.to_json(detour),
+       basename(path) .. " is stable through the NFM detour")
 end
 t.truthy(json_checked > 0, "the JSON blocks corpus was scanned, checked " .. json_checked)

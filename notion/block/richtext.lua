@@ -80,11 +80,28 @@ local function mention_span(rt)
     if url then attrs[#attrs + 1] = { "url", tostring(url) }
     elseif id then attrs[#attrs + 1] = { "url", tostring(id) } end
     if kind == "date" then
+      -- NFM splits a date mention across start/startTime/timeZone, while the
+      -- API carries the clock time INSIDE the ISO start string and the zone in
+      -- its own `time_zone` field. Both are representable, so both survive:
+      -- "2026-01-01T09:00" -> start="2026-01-01" startTime="09:00".
       attrs = {}
       local start_ = json.get(payload, "start")
       local end_   = json.get(payload, "end")
-      if start_ then attrs[#attrs + 1] = { "start", tostring(start_) } end
-      if end_   then attrs[#attrs + 1] = { "end",   tostring(end_)   } end
+      local zone   = json.get(payload, "time_zone")
+      -- Emitted in schema.MENTION_TAGS["mention-date"].attrs order --
+      -- start, end, startTime, timeZone -- so the NFM writer reproduces the
+      -- source spelling rather than a permutation of it.
+      local time
+      if start_ then
+        local date, clock = tostring(start_):match("^([^T]+)T(%d%d:%d%d)")
+        time = clock
+        attrs[#attrs + 1] = { "start", date or tostring(start_) }
+      end
+      if end_ then
+        attrs[#attrs + 1] = { "end", (tostring(end_):match("^([^T]+)")) or tostring(end_) }
+      end
+      if time then attrs[#attrs + 1] = { "startTime", time } end
+      if zone then attrs[#attrs + 1] = { "timeZone", tostring(zone) } end
     end
   end
 
@@ -306,8 +323,15 @@ function M.from_inlines(inlines)
       local payload = json.obj({})
       local url = el.attributes.url
       if kind == "date" then
-        if el.attributes.start then payload.start = el.attributes.start end
+        -- Inverse of the read split: the clock time goes back inside the ISO
+        -- start string, and the zone into the API's own time_zone field.
+        local start_ = el.attributes.start
+        if start_ then
+          local at = el.attributes.startTime
+          payload.start = at and (start_ .. "T" .. at) or start_
+        end
         if el.attributes["end"] then payload["end"] = el.attributes["end"] end
+        if el.attributes.timeZone then payload.time_zone = el.attributes.timeZone end
       elseif url then
         payload.id = url
         payload.url = url
