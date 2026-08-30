@@ -231,7 +231,21 @@ end
 
 -- ---- handlers -------------------------------------------------------------
 
+-- design doc 4.3 maps Notion's equation BLOCK to Para [Math DisplayMath …], so
+-- the inverse has to recognise that exact shape. A Para that merely CONTAINS
+-- display math alongside other content is a real paragraph and stays one.
+local function sole_display_math(inlines)
+  if #inlines ~= 1 then return nil end
+  local only = inlines[1]
+  if only.t == "Math" and only.mathtype == "DisplayMath" then return only.text end
+  return nil
+end
+
 M.HANDLERS.Para = function(el)
+  local expr = sole_display_math(el.content)
+  if expr then
+    return M.block("equation", json.obj({ expression = expr }), el)
+  end
   return M.block("paragraph",
                  json.obj({ rich_text = rich(el.content), color = "default" }), el)
 end

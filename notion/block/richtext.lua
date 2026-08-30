@@ -62,16 +62,30 @@ local function mention_span(rt)
   local payload = json.get(mention, kind) or {}
 
   local attrs = {}
-  local url = json.get(payload, "url")
-  local id  = json.get(payload, "id")
-  if url then attrs[#attrs + 1] = { "url", tostring(url) }
-  elseif id then attrs[#attrs + 1] = { "url", tostring(id) } end
-  if kind == "date" then
-    attrs = {}
-    local start_ = json.get(payload, "start")
-    local end_   = json.get(payload, "end")
-    if start_ then attrs[#attrs + 1] = { "start", tostring(start_) } end
-    if end_   then attrs[#attrs + 1] = { "end",   tostring(end_)   } end
+  -- design doc 4.5: template_mention is a named rule, not the generic path --
+  -- generically deriving the class from "template_mention" would produce
+  -- "mention-template-mention", and neither url nor id exists to carry the
+  -- value. The API nests a subtype (template_mention_date|_user) one level
+  -- further, keyed under itself, e.g. {type="template_mention_date",
+  -- template_mention_date="today"}; the subtype's own value is what NFM's
+  -- single `kind` attribute holds.
+  if kind == "template_mention" then
+    local sub_kind = tostring(json.get(payload, "type") or "")
+    local value    = json.get(payload, sub_kind)
+    class = "mention-template"
+    if value then attrs[#attrs + 1] = { "kind", tostring(value) } end
+  else
+    local url = json.get(payload, "url")
+    local id  = json.get(payload, "id")
+    if url then attrs[#attrs + 1] = { "url", tostring(url) }
+    elseif id then attrs[#attrs + 1] = { "url", tostring(id) } end
+    if kind == "date" then
+      attrs = {}
+      local start_ = json.get(payload, "start")
+      local end_   = json.get(payload, "end")
+      if start_ then attrs[#attrs + 1] = { "start", tostring(start_) } end
+      if end_   then attrs[#attrs + 1] = { "end",   tostring(end_)   } end
+    end
   end
 
   local label = json.get(rt, "plain_text")
@@ -268,6 +282,25 @@ function M.from_inlines(inlines)
       if c == "mention" then is_mention = true end
       local m = tostring(c):match("^mention%-(.+)$")
       if m then kind = m:gsub("%-", "_") end
+    end
+    if is_mention and kind == "template" then
+      -- design doc 4.5: class "mention-template" round-trips to the
+      -- template_mention subtype the value alone determines -- "me" is the
+      -- only documented template_mention_user value, everything else
+      -- (today/now) is a template_mention_date.
+      local value    = el.attributes.kind
+      local sub_kind = value == "me" and "template_mention_user" or "template_mention_date"
+      emit_atom(json.obj({
+        type = "mention",
+        mention = json.obj({
+          type = "template_mention",
+          template_mention = json.obj({ type = sub_kind, [sub_kind] = value }),
+        }),
+        annotations = json.obj(annotations_for(st)),
+        plain_text  = pandoc.utils.stringify(el),
+        href        = st.href,
+      }), st)
+      return
     end
     if is_mention and kind then
       local payload = json.obj({})

@@ -15,6 +15,21 @@ t.eq(para[para.type].color, "default", "and an explicit default colour")
 -- Plain is a paragraph too.
 t.eq(one(pandoc.Plain({ pandoc.Str("x") })).type, "paragraph", "Plain becomes paragraph")
 
+-- Cross-task fix: design doc 4.3 maps Notion's equation block to
+-- Para [Math DisplayMath], so a Para holding EXACTLY that shape must invert
+-- back to an equation block, or the block type can never round-trip.
+local eq = one(pandoc.Para({ pandoc.Math("DisplayMath", "e=mc^2") }))
+t.eq(eq.type, "equation", "a lone display-math Para becomes an equation block")
+t.eq(eq.equation.expression, "e=mc^2", "carrying the expression")
+
+-- A Para that merely contains display math alongside other content is a real
+-- paragraph, and stays one -- the equation run lives inline in rich_text.
+local mixed = one(pandoc.Para({ pandoc.Str("x="),
+                                pandoc.Math("DisplayMath", "e=mc^2") }))
+t.eq(mixed.type, "paragraph", "display math beside other content stays a paragraph")
+t.eq(mixed.paragraph.rich_text[2].type, "equation",
+     "and the math survives as an inline equation run")
+
 -- Headings, including level 4, which the API really has.
 for level = 1, 4 do
   t.eq(one(pandoc.Header(level, { pandoc.Str("H") })).type, "heading_" .. level,

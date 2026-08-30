@@ -107,6 +107,31 @@ t.eq(u[1].classes, pandoc.List({ "mention", "mention-data-source" }),
      "unknown mention kinds get a class from their name")
 t.eq(pandoc.utils.stringify(u[1]), "Sources", "and keep their plain_text")
 
+-- Cross-task fix: template_mention (design doc 4.5) is a NAMED rule, not the
+-- generic path -- generically it would derive class "mention-template-mention"
+-- and find neither url nor id, losing the subtype and value entirely. The API
+-- nests the subtype one level further (template_mention_date|_user), keyed
+-- under itself; NFM keeps only the subtype's own value, in a `kind` attribute.
+local tm_date = rt.to_inlines({ {
+  type = "mention",
+  mention = { type = "template_mention",
+              template_mention = { type = "template_mention_date",
+                                    template_mention_date = "today" } },
+  annotations = {}, plain_text = "@Today",
+} })
+t.eq(tm_date[1].classes, pandoc.List({ "mention", "mention-template" }),
+     "template_mention reads to the mention-template class")
+t.eq(tm_date[1].attributes.kind, "today", "carrying the subtype's value as kind")
+
+local tm_user = rt.to_inlines({ {
+  type = "mention",
+  mention = { type = "template_mention",
+              template_mention = { type = "template_mention_user",
+                                    template_mention_user = "me" } },
+  annotations = {}, plain_text = "@Me",
+} })
+t.eq(tm_user[1].attributes.kind, "me", "a template_mention_user carries its value too")
+
 -- null in an optional field must not be treated as present.
 t.eq(native(rt.to_inlines({ {
        type = "text",
@@ -221,6 +246,29 @@ local mention_out = rt.from_inlines({
 })
 t.eq(mention_out[1].type, "mention", "a mention Span becomes a mention run")
 t.eq(mention_out[1].mention.type, "user", "the kind is recovered from the class")
+
+-- Cross-task fix: mention-template writes back to the correct
+-- template_mention_date/_user wrapper -- the value alone determines which,
+-- since "me" is the only documented template_mention_user value.
+local tm_date_out = rt.from_inlines({
+  pandoc.Span({ pandoc.Str("@Today") },
+              pandoc.Attr("", { "mention", "mention-template" }, { { "kind", "today" } }))
+})
+t.eq(tm_date_out[1].mention.type, "template_mention",
+     "mention-template writes back to template_mention")
+t.eq(tm_date_out[1].mention.template_mention.type, "template_mention_date",
+     "a non-\"me\" kind reconstructs the date subtype")
+t.eq(tm_date_out[1].mention.template_mention.template_mention_date, "today",
+     "carrying the value under its own subtype key")
+
+local tm_user_out = rt.from_inlines({
+  pandoc.Span({ pandoc.Str("@Me") },
+              pandoc.Attr("", { "mention", "mention-template" }, { { "kind", "me" } }))
+})
+t.eq(tm_user_out[1].mention.template_mention.type, "template_mention_user",
+     '"me" reconstructs the user subtype')
+t.eq(tm_user_out[1].mention.template_mention.template_mention_user, "me",
+     "carrying the value under its own subtype key")
 
 -- Arrays must be pandoc.List, or they encode as {} and Notion rejects them.
 t.eq(json.encode(rt.from_inlines({})), "[]", "an empty result encodes as []")
