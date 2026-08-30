@@ -2403,8 +2403,17 @@ M.WRITER     = ROOT .. "/notion-block-writer.lua"
 M.NFM_READER = ROOT .. "/notion-markdown-reader.lua"
 M.NFM_WRITER = ROOT .. "/notion-markdown-writer.lua"
 
+-- --standalone is required: pandoc's native writer emits the `Pandoc Meta …`
+-- wrapper ONLY under --standalone. Without it, `-t native` prints the blocks
+-- alone and Meta vanishes -- which would leave design doc 4.6 (page properties
+-- -> Meta) with no golden coverage in Task 13, even though it is success
+-- criterion 6. The cost on a document with no metadata is one short line:
+-- `Pandoc Meta { unMeta = fromList [] } [ … ]`.
+-- The NFM helper in tests/support/nfm.lua needs no such flag, because NFM has
+-- no metadata layer at all.
 function M.to_native(text)
-  return pandoc.pipe("pandoc", { "-f", M.READER, "-t", "native" }, text)
+  return pandoc.pipe("pandoc",
+    { "-f", M.READER, "-t", "native", "--standalone" }, text)
 end
 
 function M.to_json(text)
