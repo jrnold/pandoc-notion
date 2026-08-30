@@ -158,6 +158,20 @@ t.eq(json.encode(one(pandoc.Div({}, pandoc.Attr("", { "breadcrumb" }, {}))).brea
 -- ---- structural and lossy (Task 11) ----
 require "notion.block.writer_custom"
 
+-- Degradation is silent at default verbosity, and INFO fires ONLY on a genuine
+-- drop (design doc 8). Silence is therefore a requirement, not an absence, and
+-- has to be asserted as strictly as the output. pandoc.log.info is a plain
+-- function on a table, so it can be counted in-process -- no subprocess and no
+-- entry point needed.
+local function count_logs(fn)
+  local real, n = pandoc.log.info, 0
+  pandoc.log.info = function() n = n + 1 end
+  local ok, err = pcall(fn)
+  pandoc.log.info = real
+  if not ok then error(err) end
+  return n
+end
+
 -- Tables.
 local tbl = one(pandoc.Table(
   pandoc.Caption(pandoc.Blocks({})),
@@ -186,6 +200,16 @@ local rh = one(pandoc.Table(
   pandoc.TableFoot()))
 t.eq(rh.table.has_row_header, true, "row_head_columns sets has_row_header")
 t.eq(rh.table.has_column_header, false, "an empty head means no column header")
+
+-- The table-cell rule's boundary: one block per cell is not a drop, silent.
+t.eq(count_logs(function()
+       one(pandoc.Table(
+         pandoc.Caption(pandoc.Blocks({})), { { pandoc.AlignDefault, nil } },
+         pandoc.TableHead({}),
+         { pandoc.TableBody({ pandoc.Row({
+             pandoc.Cell({ pandoc.Plain({ pandoc.Str("x") }) }) }) }, {}, 0) },
+         pandoc.TableFoot()))
+     end), 0, "a single-block cell is silent")
 
 -- Figures round-trip back to media blocks.
 local fig = one(pandoc.Figure(
@@ -266,7 +290,41 @@ local nested_cell = one(pandoc.Table(
   pandoc.TableFoot()))
 t.eq(nested_cell.table.children[1].table_row.cells[1][1].text.content, "a b",
      "a multi-block cell is flattened to rich text")
+t.eq(count_logs(function()
+       one(pandoc.Table(
+         pandoc.Caption(pandoc.Blocks({})), { { pandoc.AlignDefault, nil } },
+         pandoc.TableHead({}),
+         { pandoc.TableBody({ pandoc.Row({ pandoc.Cell({
+             pandoc.Para({ pandoc.Str("a") }), pandoc.Para({ pandoc.Str("b") }) }) }) }, {}, 0) },
+         pandoc.TableFoot()))
+     end), 1, "a multi-block cell logs exactly once")
 
 -- Raw content in a foreign format is dropped.
 t.eq(#writer.convert({ pandoc.RawBlock("latex", "\\vspace{1cm}") }), 0,
      "a foreign RawBlock is dropped")
+
+-- Silent paths: a deterministic fallback is not a drop.
+t.eq(count_logs(function() writer.convert({ pandoc.LineBlock({
+       { pandoc.Str("one") }, { pandoc.Str("two") } }) }) end), 0, "LineBlock is silent")
+t.eq(count_logs(function() writer.convert({ pandoc.DefinitionList({
+       { { pandoc.Str("T") }, { { pandoc.Plain({ pandoc.Str("D") }) } } } }) }) end), 0,
+     "DefinitionList is silent")
+t.eq(count_logs(function() writer.convert({ pandoc.Para({
+       pandoc.SmallCaps({ pandoc.Str("quiet") }) }) }) end), 0, "SmallCaps is silent")
+t.eq(count_logs(function() writer.convert({ pandoc.Para({
+       pandoc.Superscript({ pandoc.Str("2") }) }) }) end), 0, "Superscript is silent")
+t.eq(count_logs(function() writer.convert({ pandoc.Para({
+       pandoc.Subscript({ pandoc.Str("2") }) }) }) end), 0, "Subscript is silent")
+t.eq(count_logs(function()
+       require("notion.block.richtext").reset_notes()
+       writer.convert({ pandoc.Para({ pandoc.Str("t"),
+         pandoc.Note({ pandoc.Para({ pandoc.Str("n") }) }) }) })
+     end), 0, "the footnote marker is silent")
+
+-- Genuine drops: exactly one INFO each.
+t.eq(count_logs(function() writer.convert({ pandoc.RawBlock("latex", "\\x") }) end), 1,
+     "a foreign RawBlock logs exactly once")
+
+-- Reset shared module state so later suites in the same process (tests/run.lua
+-- runs every suite in one Lua process) don't inherit this file's note count.
+require("notion.block.richtext").reset_notes()
