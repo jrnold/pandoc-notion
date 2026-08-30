@@ -130,6 +130,16 @@ t.eq(id_divider[1].content[1].t, "HorizontalRule", "around the rule itself")
 t.eq(reader.convert({ { type = "divider", divider = {} } })[1].t, "HorizontalRule",
      "an id-less divider stays a bare HorizontalRule")
 
+-- design doc 4.1 applies to equation too, which shares divider's wrap_color
+-- call. Tested separately so a change to one cannot silently pass on the other.
+local id_equation = reader.convert({ { type = "equation", id = "e-1",
+  equation = { expression = "e=mc^2" } } })
+t.eq(id_equation[1].t, "Div", "an equation with an id wraps to carry it")
+t.eq(id_equation[1].identifier, "e-1", "preserving the id")
+t.eq(reader.convert({ { type = "equation", equation = { expression = "x" } } })[1].t, "Para",
+     "an id-less equation stays a bare Para")
+
+
 -- The six JSON-only classes.
 t.eq(reader.convert({ { type = "bookmark",
                         bookmark = { url = "https://e.com", caption = {} } } })[1].attributes.url,
@@ -290,3 +300,12 @@ local bm = reader.convert({ { type = "mention",
   mention = { type = "page", page = { id = "p-9" } } } })
 t.eq(bm[1].t, "Para", "a mention block is a Para")
 t.eq(bm[1].content[1].classes, pandoc.List({ "mention", "mention-page" }), "holding a mention Span")
+
+-- Must stay AFTER `require "notion.block.reader_custom"`: table_row is a CUSTOM
+-- registration, so asserting it earlier in this file tests the unregistered
+-- fallback instead of the handler.
+local stray = reader.convert({ { type = "table_row",
+  table_row = { cells = { { { type = "text", text = { content = "orphan" },
+                             annotations = {}, plain_text = "orphan" } } } } } })
+t.eq(#stray, 1, "a stray table_row is recovered, not dropped")
+t.eq(pandoc.utils.stringify(stray[1]), "orphan", "keeping its first cell's text")
