@@ -36,7 +36,7 @@ conversion falls out of piping through pandoc, with no additional mapping code.
 - Enforcement of Notion's API limits. See §8.2 — this is a deliberate decision,
   not an omission.
 - Writing page properties. `Meta` is read-only in this version; see §4.6, and
-  §12.2 for the planned direction.
+  §12.3 for the planned direction.
 - Notion database *schemas* (the definition of a database's columns, as opposed
   to a page's property values).
 
@@ -348,7 +348,7 @@ database schema — a `select` value must already exist as an option — which i
 squarely the API client's responsibility under §8.2.
 
 This is a deferral, not a permanent boundary. Property writes are planned; see
-§12.2 for the intended direction and the constraint that makes it non-trivial.
+§12.3 for the intended direction and the constraint that makes it non-trivial.
 
 | property type | `Meta` value |
 |---|---|
@@ -655,7 +655,7 @@ tests/corpus/json/
 | `has_children` without children is INFO, not error or class | It is ordinary unhydrated output; a class would leak a fetch artifact into every format |
 | `decode` nil check, not `pcall` | `pandoc.json.decode` never raises (§2.3) |
 | No API-limit enforcement | Output is a forgiving superset; the uploader owns chunking |
-| `Meta` is read-only *for now* | Property writes need a database schema to validate against; deferred, not foreclosed (§12.2) |
+| `Meta` is read-only *for now* | Property writes need a database schema to validate against; deferred, not foreclosed (§12.3) |
 | Cross-pair round trip as the flagship test | Directly asserts the shared-AST payoff both specs were written for |
 
 ## 11. Success criteria
@@ -691,7 +691,40 @@ finding lands against a written expectation rather than a memory.
   not list. The generic `mention-<kind>` fallback means a positive finding
   requires no code change, only a golden fixture.
 
-### 12.2 Deferred features
+### 12.2 Known limitation: the bare classless `Div` is overloaded
+
+The NFM reader uses a classless, attribute-less `Div` to encode indentation
+nesting — `"Parent\n\tChild"` becomes `Div ("",[],[]) [Para, Para]` — and the
+block writer follows suit: a classless `Div` with more than one child is
+treated as a parent block plus its children (§4.2 covers only the one-child
+colour-wrapper case).
+
+That rule is correct for input produced by either reader in this repo, and
+wrong for everything else, because a bare `Div` is also pandoc's universal
+generic grouping node. Converting `<div><p>One.</p><p>Two.</p></div>`, or a
+docx whose `custom-style` Divs survive into the AST, silently nests unrelated
+siblings: `paragraph("One.")` gains `paragraph("Two.")` as a child. Two
+`HorizontalRule`s become a divider with a divider child, which Notion rejects.
+This matters because `pandoc -f docx -t notion-block-writer.lua` is an
+advertised use.
+
+The real fix is to make NFM's nesting explicit — give that `Div` a class so
+`schema.lua` can own the rule instead of it living as an untracked convention
+shared by two pairs that nothing links. That is deliberately not done here
+because it moves the NFM pair's goldens, which is a larger change than this
+sub-project should make to its sibling.
+
+This is the concrete instance of a wider point: `schema.lua` is a single
+source of truth for the *flat* part of the convention (type ↔ class ↔ tag),
+but not for the *shape* part — which class nests inside which, that a toggle's
+title sits one level deeper in `Div.summary`, that a media `Figure` is
+unclassed-with-`Image` for `image` and classed-with-`Link` for the rest. That
+knowledge exists only as hardcoded comparisons in the converters, mirrored by
+an unlinked set in the NFM pair. The cross-pair test of §9.1 is what holds the
+two in agreement, which is why every defect it caught was of exactly this
+shape.
+
+### 12.3 Deferred features
 
 - **Writing page properties.** `Meta` is read-only in this version (§4.6). The
   intended future direction is for the writer to emit a page object with a

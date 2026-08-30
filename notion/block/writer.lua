@@ -244,6 +244,15 @@ local function div_handler(el)
     end
   end
 
+  -- A URL icon uses the file-object form, never the emoji form (see the
+  -- reader's icon-src note). NFM has no spelling for it, so it only ever
+  -- arrives from block JSON.
+  local icon_src = el.attributes and el.attributes["icon-src"]
+  if icon_src and icon_src ~= "" then
+    payload.icon = json.obj({ type = "external",
+                              external = json.obj({ url = icon_src }) })
+  end
+
   if class == "bookmark" or class == "embed" or class == "link-preview" then
     payload.url = el.attributes.url or ""
     if class == "bookmark" then payload.caption = rich(head) end

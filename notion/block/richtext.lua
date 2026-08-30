@@ -404,7 +404,18 @@ function M.from_inlines(inlines)
         M.notes[#M.notes + 1] = el.content
         emit_text("[" .. M.note_count .. "]", st)
       elseif tag == "Image" then
-        emit_text(pandoc.utils.stringify(el.caption or {}), st)
+        -- Notion's rich text has no inline image. Preserve the target as a
+        -- link on the caption rather than dropping it, mirroring how the
+        -- citation branch above keeps its source. Emitting only the caption
+        -- lost the URL silently, which design doc 8 forbids without an INFO --
+        -- and preserving it is better than logging its loss.
+        local label = pandoc.utils.stringify(el.caption or {})
+        if label == "" then label = el.src or "" end
+        if el.src and el.src ~= "" then
+          emit_text(label, derive(st, "href", el.src))
+        else
+          emit_text(label, st)
+        end
       elseif tag == "RawInline" then
         pandoc.log.info("Not rendering RawInline (Format \"" ..
                         tostring(el.format) .. "\")")

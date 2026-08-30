@@ -135,7 +135,7 @@ nesting per request, 2000 characters per `text.content`, and 100 elements per
 **Page properties are read-only.** A page object's properties are flattened
 into pandoc `Meta`, so `--standalone` output is titled. The writer ignores
 `Meta` and emits a bare block array, because property writes must validate
-against a database schema. See §12.2 of the design document.
+against a database schema. See §12.3 of the design document.
 
 **Server-owned metadata is dropped.** Only the block `id` survives, in the
 pandoc `Attr` identifier slot. Timestamps, `created_by`, `last_edited_by`,

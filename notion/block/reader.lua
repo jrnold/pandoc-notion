@@ -29,8 +29,23 @@ function M.attr_for(block, def, payload)
   for jkey, akey in pairs((def and def.fields) or {}) do
     -- icon arrives as an object ({type="emoji",emoji="X"} or a file object);
     -- everything else declared in `fields` is already a scalar.
-    local v = (jkey == "icon") and icon_value(json.get(payload, "icon"))
-              or json.get(payload, jkey)
+    -- An icon has three spellings and they are NOT interchangeable on write:
+    -- flattening a file/external icon into the same `icon` attribute as an
+    -- emoji made the writer re-emit it as {type="emoji", emoji="https://..."},
+    -- which Notion rejects. Keep `icon` for emoji and `icon-src` for a URL, so
+    -- the writer can tell them apart.
+    local v
+    if jkey == "icon" then
+      local icon = json.get(payload, "icon")
+      local kind = type(icon) == "table" and json.get(icon, "type") or nil
+      v = icon_value(icon)
+      if v ~= nil and kind ~= "emoji" then
+        attributes[#attributes + 1] = { "icon-src", tostring(v) }
+        v = nil
+      end
+    else
+      v = json.get(payload, jkey)
+    end
     if v ~= nil and type(v) ~= "table" then
       attributes[#attributes + 1] = { akey, tostring(v) }
     end
