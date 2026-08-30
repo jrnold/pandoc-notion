@@ -84,6 +84,12 @@ function M.convert_block(block)
   local def = schema.NOTION_INDEX[type_name]
   if not def then return unknown_block(block, type_name) end
 
+  -- A type flagged `custom` has no generic representation: its content lives
+  -- in a shape the table-driven path cannot read. If its handler is missing,
+  -- degrade to a visible `unknown` rather than a near-empty Div that silently
+  -- discards code text, table structure, or a media source.
+  if def.custom then return unknown_block(block, type_name) end
+
   -- Notion's own "unsupported" carries the real type in block_type.
   if type_name == "unsupported" then
     local real = json.get(payload, "block_type")
@@ -113,12 +119,13 @@ function M.convert_block(block)
   end
 
   if type_name == "divider" then
-    return pandoc.HorizontalRule()
+    return M.wrap_color(pandoc.HorizontalRule(), color, id and tostring(id) or nil)
   end
 
   if type_name == "equation" then
     local expr = json.get(payload, "expression")
-    return pandoc.Para({ pandoc.Math("DisplayMath", tostring(expr or "")) })
+    return M.wrap_color(pandoc.Para({ pandoc.Math("DisplayMath", tostring(expr or "")) }),
+                        color, id and tostring(id) or nil)
   end
 
   -- Everything else is a Div carrying its class and attributes.

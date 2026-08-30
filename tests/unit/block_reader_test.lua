@@ -93,6 +93,23 @@ t.eq(reader.convert({ { type = "child_page", id = "p-1",
 t.eq(reader.convert({ { type = "transcription", transcription = {} } })[1].classes,
      pandoc.List({ "meeting-notes" }), "transcription reuses meeting-notes")
 
+-- A custom-flagged type with no registered handler degrades visibly, not into
+-- a generic Div that would silently swallow its content.
+local unregistered = reader.convert({ { type = "code",
+  code = { rich_text = { run("print(1)") }, language = "python" } } })
+t.eq(unregistered[1].classes, pandoc.List({ "unknown" }),
+     "a custom type with no handler becomes unknown, not a generic Div")
+t.eq(unregistered[1].attributes.alt, "code", "and names the type it was")
+
+-- design doc 4.1 applies to every block type, including those whose pandoc
+-- node has no Attr slot of its own.
+local id_divider = reader.convert({ { type = "divider", id = "d-1", divider = {} } })
+t.eq(id_divider[1].t, "Div", "a divider with an id wraps to carry it")
+t.eq(id_divider[1].identifier, "d-1", "preserving the id")
+t.eq(id_divider[1].content[1].t, "HorizontalRule", "around the rule itself")
+t.eq(reader.convert({ { type = "divider", divider = {} } })[1].t, "HorizontalRule",
+     "an id-less divider stays a bare HorizontalRule")
+
 -- The six JSON-only classes.
 t.eq(reader.convert({ { type = "bookmark",
                         bookmark = { url = "https://e.com", caption = {} } } })[1].attributes.url,
