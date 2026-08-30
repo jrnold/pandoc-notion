@@ -108,6 +108,45 @@ local function wrap(inlines, a, href)
   return inlines
 end
 
+-- Unicode super/subscript forms, where they exist. Characters without one
+-- fall back to their literal form (design doc 8).
+M.SUPERSCRIPT = {
+  ["0"]="⁰", ["1"]="¹", ["2"]="²", ["3"]="³", ["4"]="⁴", ["5"]="⁵",
+  ["6"]="⁶", ["7"]="⁷", ["8"]="⁸", ["9"]="⁹", ["+"]="⁺", ["-"]="⁻",
+  ["="]="⁼", ["("]="⁽", [")"]="⁾", ["n"]="ⁿ", ["i"]="ⁱ",
+}
+M.SUBSCRIPT = {
+  ["0"]="₀", ["1"]="₁", ["2"]="₂", ["3"]="₃", ["4"]="₄", ["5"]="₅",
+  ["6"]="₆", ["7"]="₇", ["8"]="₈", ["9"]="₉", ["+"]="₊", ["-"]="₋",
+  ["="]="₌", ["("]="₍", [")"]="₎", ["a"]="ₐ", ["e"]="ₑ", ["o"]="ₒ",
+  ["x"]="ₓ", ["h"]="ₕ", ["k"]="ₖ", ["l"]="ₗ", ["m"]="ₘ", ["n"]="ₙ",
+  ["p"]="ₚ", ["s"]="ₛ", ["t"]="ₜ",
+}
+
+-- Map each character through `table`, or keep it verbatim when absent. If NO
+-- character has a mapping, return the input unchanged so the fallback reads as
+-- plain literal text rather than a half-converted mixture.
+function M.script_text(s, table_)
+  local out, any = {}, false
+  for _, code in utf8.codes(s) do
+    local ch = utf8.char(code)
+    local mapped = table_[ch]
+    if mapped then any = true end
+    out[#out + 1] = mapped or ch
+  end
+  if not any then return s end
+  return table.concat(out)
+end
+
+-- Footnote bookkeeping, reset per document by the writer entry point.
+M.note_count = 0
+M.notes = {}
+
+function M.reset_notes()
+  M.note_count = 0
+  M.notes = {}
+end
+
 function M.to_inlines(rich_text)
   local out = pandoc.List({})
   if type(rich_text) ~= "table" then return pandoc.Inlines(out) end
@@ -275,10 +314,31 @@ function M.from_inlines(inlines)
           plain_text  = el.text,
           href        = st.href,
         }), st)
+      elseif tag == "SmallCaps" then
+        emit_text(pandoc.text.upper(pandoc.utils.stringify(el)), st)
+      elseif tag == "Superscript" then
+        emit_text(M.script_text(pandoc.utils.stringify(el), M.SUPERSCRIPT), st)
+      elseif tag == "Subscript" then
+        emit_text(M.script_text(pandoc.utils.stringify(el), M.SUBSCRIPT), st)
+      elseif tag == "Quoted" then
+        local open_q, close_q = '"', '"'
+        if el.quotetype == "SingleQuote" then open_q, close_q = "'", "'" end
+        emit_text(open_q, st)
+        walk(el.content, st)
+        emit_text(close_q, st)
+      elseif tag == "Note" then
+        M.note_count = (M.note_count or 0) + 1
+        M.notes = M.notes or {}
+        M.notes[#M.notes + 1] = el.content
+        emit_text("[" .. M.note_count .. "]", st)
+      elseif tag == "Image" then
+        emit_text(pandoc.utils.stringify(el.caption or {}), st)
+      elseif tag == "RawInline" then
+        pandoc.log.info("Not rendering RawInline (Format \"" ..
+                        tostring(el.format) .. "\")")
       elseif el.content then
-        -- Defined default: walk transparently. Task 11 replaces this with the
-        -- documented lossy fallbacks for SmallCaps, Super/Subscript, Note,
-        -- Quoted, Cite, RawInline and Image.
+        -- Transparent default for everything else (e.g. Cite): keep the
+        -- content, drop only the wrapper.
         walk(el.content, st)
       end
     end

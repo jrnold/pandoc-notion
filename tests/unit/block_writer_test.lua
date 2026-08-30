@@ -154,3 +154,119 @@ t.eq(json.encode(one(pandoc.Para({}))[  "paragraph" ].rich_text), "[]",
      "an empty rich_text encodes as [], not {}")
 t.eq(json.encode(one(pandoc.Div({}, pandoc.Attr("", { "breadcrumb" }, {}))).breadcrumb),
      "{}", "an empty payload object encodes as {}")
+
+-- ---- structural and lossy (Task 11) ----
+require "notion.block.writer_custom"
+
+-- Tables.
+local tbl = one(pandoc.Table(
+  pandoc.Caption(pandoc.Blocks({})),
+  { { pandoc.AlignDefault, nil }, { pandoc.AlignDefault, nil } },
+  pandoc.TableHead({ pandoc.Row({
+    pandoc.Cell({ pandoc.Plain({ pandoc.Str("Status") }) }),
+    pandoc.Cell({ pandoc.Plain({ pandoc.Str("Owner") }) }) }) }),
+  { pandoc.TableBody({ pandoc.Row({
+    pandoc.Cell({ pandoc.Plain({ pandoc.Str("Doing") }) }),
+    pandoc.Cell({ pandoc.Plain({ pandoc.Str("Ada") }) }) }) }, {}, 0) },
+  pandoc.TableFoot()))
+t.eq(tbl.type, "table", "Table becomes table")
+t.eq(tbl.table.table_width, 2, "table_width comes from the colspecs")
+t.eq(tbl.table.has_column_header, true, "a populated head sets has_column_header")
+t.eq(#tbl.table.children, 2, "head and body rows are all table_row children")
+t.eq(tbl.table.children[1].type, "table_row", "rows are table_row blocks")
+t.eq(tbl.table.children[1].table_row.cells[1][1].text.content, "Status",
+     "cells are arrays of rich text")
+
+-- has_row_header comes from row_head_columns.
+local rh = one(pandoc.Table(
+  pandoc.Caption(pandoc.Blocks({})), { { pandoc.AlignDefault, nil } },
+  pandoc.TableHead({}),
+  { pandoc.TableBody({ pandoc.Row({
+      pandoc.Cell({ pandoc.Plain({ pandoc.Str("x") }) }) }) }, {}, 1) },
+  pandoc.TableFoot()))
+t.eq(rh.table.has_row_header, true, "row_head_columns sets has_row_header")
+t.eq(rh.table.has_column_header, false, "an empty head means no column header")
+
+-- Figures round-trip back to media blocks.
+local fig = one(pandoc.Figure(
+  pandoc.Blocks({ pandoc.Plain({ pandoc.Link({ pandoc.Str("Cap") },
+                                             "https://e.com/v.mp4") }) }),
+  pandoc.Caption(pandoc.Blocks({ pandoc.Plain({ pandoc.Str("Cap") }) })),
+  pandoc.Attr("", { "video" }, {})))
+t.eq(fig.type, "video", "a classed Figure becomes its media type")
+t.eq(fig.video.type, "external", "with an external file object")
+t.eq(fig.video.external.url, "https://e.com/v.mp4", "carrying the URL")
+t.eq(fig.video.caption[1].text.content, "Cap", "and the caption")
+
+-- A plain Figure with an Image is an image block.
+local img = one(pandoc.Figure(
+  pandoc.Blocks({ pandoc.Plain({ pandoc.Image({ pandoc.Str("A") }, "https://e.com/i.png") }) }),
+  pandoc.Caption(pandoc.Blocks({ pandoc.Plain({ pandoc.Str("A") }) })),
+  pandoc.Attr()))
+t.eq(img.type, "image", "an unclassed Figure defaults to image")
+t.eq(img.image.external.url, "https://e.com/i.png", "from the Image target")
+
+-- LineBlock is genuinely native: one paragraph with newlines.
+local lb = one(pandoc.LineBlock({
+  { pandoc.Str("one") }, { pandoc.Str("two") } }))
+t.eq(lb.type, "paragraph", "LineBlock is one paragraph")
+t.eq(lb.paragraph.rich_text[1].text.content, "one\ntwo", "lines joined by newline")
+
+-- DefinitionList: bold term, definition as children.
+local dl = one(pandoc.DefinitionList({
+  { { pandoc.Str("Term") }, { { pandoc.Plain({ pandoc.Str("Meaning") }) } } } }))
+t.eq(dl.type, "paragraph", "the term is a paragraph")
+t.eq(dl.paragraph.rich_text[1].annotations.bold, true, "with the term bolded")
+t.eq(dl.paragraph.children[1].paragraph.rich_text[1].text.content, "Meaning",
+     "and the definition as a child block")
+
+-- SmallCaps uppercases.
+t.eq(one(pandoc.Para({ pandoc.SmallCaps({ pandoc.Str("quiet") }) }))
+       .paragraph.rich_text[1].text.content, "QUIET", "SmallCaps uppercases")
+
+-- Super/subscript use Unicode where it exists.
+t.eq(one(pandoc.Para({ pandoc.Str("x"), pandoc.Superscript({ pandoc.Str("2") }) }))
+       .paragraph.rich_text[1].text.content, "x²", "superscript 2 has a Unicode form")
+t.eq(one(pandoc.Para({ pandoc.Str("H"), pandoc.Subscript({ pandoc.Str("2") }) }))
+       .paragraph.rich_text[1].text.content, "H₂", "subscript 2 does too")
+t.eq(one(pandoc.Para({ pandoc.Superscript({ pandoc.Str("qz") }) }))
+       .paragraph.rich_text[1].text.content, "qz", "no Unicode form falls back to literal")
+
+-- Footnotes: a marker inline, and the body collected for the entry point to
+-- flush as endnote blocks later (Task 12).
+-- Note numbering is module-level state on richtext, reset per document by the
+-- writer entry point. Reset it here too, or an earlier test's notes would
+-- shift this one's numbering.
+require("notion.block.richtext").reset_notes()
+local noted = writer.convert({
+  pandoc.Para({ pandoc.Str("text"),
+                pandoc.Note({ pandoc.Para({ pandoc.Str("aside") }) }) }) })
+-- The marker merges into the preceding run, because it IS text and adjacent
+-- runs with identical annotations coalesce (design doc 4.4). Emitting it as a
+-- separate run would only be re-merged on the next read.
+t.eq(noted[1].paragraph.rich_text[1].text.content, "text[1]",
+     "the marker merges into the preceding run")
+-- NOT asserted here: that the note BODY becomes an endnote block. Nothing in
+-- this task flushes richtext.notes into blocks -- that is the document entry
+-- point's job in Task 12, since only it knows when a document is complete.
+-- Task 13's degrade test asserts it end to end, through the real entry point.
+-- Collection is all this task is responsible for:
+t.eq(#require("notion.block.richtext").notes, 1, "the note body is collected for later")
+
+-- Quoted and Cite pass their content through rather than vanishing.
+t.eq(one(pandoc.Para({ pandoc.Quoted("DoubleQuote", { pandoc.Str("q") }) }))
+       .paragraph.rich_text[1].text.content, '"q"', "Quoted keeps its quotes")
+
+-- A cell containing blocks is flattened, and that IS a real drop, so it logs.
+local nested_cell = one(pandoc.Table(
+  pandoc.Caption(pandoc.Blocks({})), { { pandoc.AlignDefault, nil } },
+  pandoc.TableHead({}),
+  { pandoc.TableBody({ pandoc.Row({ pandoc.Cell({
+      pandoc.Para({ pandoc.Str("a") }), pandoc.Para({ pandoc.Str("b") }) }) }) }, {}, 0) },
+  pandoc.TableFoot()))
+t.eq(nested_cell.table.children[1].table_row.cells[1][1].text.content, "a b",
+     "a multi-block cell is flattened to rich text")
+
+-- Raw content in a foreign format is dropped.
+t.eq(#writer.convert({ pandoc.RawBlock("latex", "\\vspace{1cm}") }), 0,
+     "a foreign RawBlock is dropped")
