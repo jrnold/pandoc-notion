@@ -63,7 +63,7 @@ t.truthy(log:find("Not rendering RawBlock", 1, true), "and logs at INFO")
 -- one Cell -- the brief's original "| - a\n  - b   |" fixture is malformed
 -- grid-table syntax (each continuation line of a multi-line cell needs its
 -- own trailing "|"), so pandoc parses it as a single Para, not a Table, and
--- never reaches the cell path at all. Verified against pandoc 3.10.2: this
+-- never reaches the cell path at all. Verified against pandoc 3.11: this
 -- fixture actually produces `Cell ... [Para ["a"], Para ["b"]]`.
 out, log = convert("+---------+\n| a       |\n|         |\n| b       |\n+---------+\n")
 t.truthy(log:find("Not rendering block content inside table cell", 1, true),

@@ -47,7 +47,7 @@ than taken from documentation, following the convention of the companion
 document's §2. Several are load-bearing and eliminated designs that looked
 correct on paper. Re-verify when the pinned pandoc version changes.
 
-Environment: pandoc 3.10.2, Lua 5.4, `PANDOC_API_VERSION` 1.23.1.2, macOS.
+Environment: pandoc 3.11, Lua 5.4, `PANDOC_API_VERSION` 1.23.1.2, macOS.
 
 ### 2.1 `pandoc.json` array/object discipline
 
@@ -545,6 +545,8 @@ larger than NFM's.
 | `Header` level > 4 | `heading_4`, matching NFM's h5/h6 → h4 |
 | `Div`/`Span` with an unrecognized class | unwrapped, children kept |
 | `Table` cell containing blocks | flattened to rich text; **INFO** — Notion cells are rich text only |
+| `Span` with the `citation` class (NFM `[^URL]`) | a link on the URL itself — Notion has no citation construct, and preserving the source beats logging its loss |
+| inline `Image` | the caption as a link on the image target — Notion's rich text has no inline image |
 | `RawBlock` / `RawInline` in a foreign format | dropped; **INFO** |
 
 ### 8.1 A note on `LineBlock`

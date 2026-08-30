@@ -104,6 +104,7 @@ local DISPATCH = {
 
 function M.to_meta(properties)
   local meta = {}
+  local title_seen, title_value = false, nil
   if type(properties) ~= "table" then return meta end
 
   -- Sorted for deterministic log order; Lua's pairs() order is arbitrary.
@@ -120,8 +121,18 @@ function M.to_meta(properties)
       if value ~= nil then
         meta[name] = value
         -- Notion names the title column whatever the database calls it, so
-        -- --standalone output would otherwise go untitled.
-        if kind == "title" and meta.title == nil then meta.title = value end
+        -- --standalone output would otherwise go untitled. A column literally
+        -- NAMED "title" must not outrank the title-TYPED one: sorted iteration
+        -- would otherwise let a `url` column called "title" clobber the real
+        -- title. Track which one came from the title type and let it win.
+        if kind == "title" then
+          meta.title = value
+          title_seen = true
+        elseif name == "title" and title_seen then
+          meta[name] = value   -- keep it under its own name, but not as Meta.title
+          meta.title = title_value
+        end
+        if kind == "title" then title_value = value end
       end
     elseif kind then
       pandoc.log.info("Not converting page property of type " .. tostring(kind))

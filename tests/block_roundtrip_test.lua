@@ -6,8 +6,8 @@ local bj = require "support.blockjson"
 local KNOWN_NOT_BYTE_IDENTICAL = {
   -- Server-owned metadata is deliberately dropped (design doc 4.1), so a
   -- fixture carrying ids and timestamps cannot come back byte-identical.
-  ["nulls.json"]        = "carries id and parent, which are dropped by design",
-  ["has-children.json"] = "list-response envelope is normalized to a bare array",
+  ["nulls.json"]        = "carries id and parent, which are dropped by design (4.1); the explicit null text.link/href are also omitted, since the writer emits those keys only when a link exists",
+  ["has-children.json"] = "list-response envelope is normalized to a bare array (6.1); id is dropped by design (4.1) and has_children has no AST carrier (6.3)",
   ["media-hosted.json"] = "expiry_time is dropped; file becomes external",
   ["all-types.json"]    = "page properties are read-only (design doc 4.6); its " ..
                           "\"Unrecognized\" property (type unique_id, which has " ..
