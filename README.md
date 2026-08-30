@@ -1,7 +1,10 @@
 # Pandoc Notion Filters
 
-Pandoc custom readers and writers for [Notion Flavored Markdown][nfm] (NFM),
-the enhanced markdown dialect spoken by Notion's markdown API endpoints.
+Pandoc custom readers and writers for the two formats Notion's APIs speak:
+[Notion Flavored Markdown][nfm] (NFM), the enhanced markdown dialect of the
+markdown endpoints, and Notion's block object JSON. Both target the same pandoc
+AST convention, so converting between them is a matter of piping through
+pandoc.
 
 ## Requirements
 
@@ -91,11 +94,62 @@ rather than raw HTML, because NFM's HTML vocabulary is a closed set.
 pandoc lua tests/run.lua
 ```
 
-## Not yet implemented
+## Notion block JSON
 
-`notion-block-reader` and `notion-block-writer`, which convert Notion's block
-object JSON to and from the pandoc AST. They are a separate sub-project and
-will target the same AST convention, at which point NFM ↔ block-JSON
-conversion falls out of piping through pandoc.
+`notion-block-reader.lua` and `notion-block-writer.lua` convert Notion's block
+object JSON to and from the pandoc AST, targeting the same AST convention as
+the NFM pair.
+
+```bash
+# Block JSON -> anything
+pandoc -f ~/.local/share/pandoc-notion/notion-block-reader.lua \
+       -t docx page.json -o page.docx
+
+# Anything -> block JSON, ready to POST
+pandoc -f docx -t ~/.local/share/pandoc-notion/notion-block-writer.lua report.docx
+
+# NFM <-> block JSON, which falls out of the shared AST
+pandoc -f ...notion-markdown-reader.lua -t ...notion-block-writer.lua page.nfm
+pandoc -f ...notion-block-reader.lua    -t ...notion-markdown-writer.lua page.json
+```
+
+The reader accepts a bare array of blocks, a paginated list response
+(`{"object":"list","results":[…]}`) as returned by
+`GET /v1/blocks/:id/children`, or a page object — following nested `children`
+arrays wherever they appear.
+
+The writer emits a hydrated array with `children` nested inside each type
+payload, which is the shape `POST /v1/pages` and `PATCH /v1/blocks/:id/children`
+accept. Block ids are omitted by default so output is directly postable; pass
+`-V preserve-ids` to keep them.
+
+### Deliberate limits
+
+**API limits are not enforced.** The output is a forgiving superset of the
+Notion block shape: no splitting of long text runs, no chunking of oversized
+`children` arrays, no nesting-depth check. A script that uploads via the API
+owns all of that. Notion's limits are 100 blocks per request, two levels of
+nesting per request, 2000 characters per `text.content`, and 100 elements per
+`rich_text` array.
+
+**Page properties are read-only.** A page object's properties are flattened
+into pandoc `Meta`, so `--standalone` output is titled. The writer ignores
+`Meta` and emits a bare block array, because property writes must validate
+against a database schema. See §12.2 of the design document.
+
+**Server-owned metadata is dropped.** Only the block `id` survives, in the
+pandoc `Attr` identifier slot. Timestamps, `created_by`, `last_edited_by`,
+`parent`, `archived` and `in_trash` are all re-derived by the server and are
+rejected on write.
+
+**NFM can say things the block API cannot.** Converting NFM → JSON → NFM loses
+a handful of NFM-only attributes, because the corresponding Notion block has no
+field for them: `url` on `<page>`, `<database>`, `<unknown>` and an original
+`<synced_block>`; `inline` on `<database>`; `{color=}` on an image;
+`startTime`/`timeZone` on `<mention-date>`. An `:emoji:` shortcode returns as
+the emoji character, and a `[^URL]` citation degrades to a link on the URL.
+This is the mirror of the better-known asymmetry in the other direction, where
+the API's block-type set is larger than NFM's. Each case is enumerated with its
+reason in `tests/crosspair_test.lua`.
 
 [nfm]: https://developers.notion.com/guides/data-apis/enhanced-markdown
