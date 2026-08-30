@@ -321,6 +321,21 @@ function M.from_inlines(inlines)
       }), st)
       return
     end
+    -- NFM's [^URL] citation is a Span carrying the source URL and NO content.
+    -- Notion has no citation construct, so the generic path walked an empty
+    -- content list and the citation vanished without a trace. Degrade to a
+    -- link on the URL itself: deterministic, and it preserves the source
+    -- rather than silently dropping it (design doc 8).
+    for _, c in ipairs(classes) do
+      if c == "citation" then
+        local url = el.attributes and el.attributes.url
+        if url and url ~= "" then
+          emit_text(url, derive(st, "href", url))
+          return
+        end
+      end
+    end
+
     local color = el.attributes and el.attributes.color
     walk(el.content, color and derive(st, "color", color) or st)
   end

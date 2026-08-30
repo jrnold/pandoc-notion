@@ -1,5 +1,5 @@
 Pandoc
   Meta { unMeta = fromList [] }
-  [ Div ( "" , [ "page" ] , [ ( "title" , "Subpage" ) ] ) []
-  , Div ( "" , [ "database" ] , [ ( "title" , "Tasks" ) ] ) []
+  [ Div ( "" , [ "page" ] , [] ) [ Plain [ Str "Subpage" ] ]
+  , Div ( "" , [ "database" ] , [] ) [ Plain [ Str "Tasks" ] ]
   ]

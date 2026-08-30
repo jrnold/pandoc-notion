@@ -149,6 +149,20 @@ local function div_handler(el)
   local class = classes[1]
   local head, rest = split_content(el.content)
 
+  -- NFM writes a toggle as Div.toggle[ Div.summary[Plain title], children... ],
+  -- so the title is one level deeper than split_content looks. Without this the
+  -- title is demoted to a child and toggle.rich_text comes out empty -- which is
+  -- wrong for Notion too, not merely lossy on the NFM round trip.
+  if class == "toggle" then
+    local first = el.content[1]
+    if first and first.t == "Div" and (first.classes or {})[1] == "summary" then
+      local summary_head = split_content(first.content)
+      head = summary_head
+      rest = pandoc.Blocks({})
+      for i = 2, #el.content do rest:insert(el.content[i]) end
+    end
+  end
+
   -- toggle-heading wraps a Header plus the children a Header cannot hold.
   -- The children belong INSIDE the heading's payload, not beside it.
   if class == "toggle-heading" then
@@ -186,6 +200,18 @@ local function div_handler(el)
       if class == "template" then payload.rich_text = rich(head) end
     end
     return M.block(VOID_CLASSES[class], payload, el)
+  end
+
+  -- child_page/child_database carry `title` as a PLAIN STRING, not rich_text,
+  -- so the generic path (which only knows rich_text) emitted no title at all
+  -- and demoted the title text into a child paragraph.
+  if class == "page" or class == "database" then
+    local ntype = schema.class_to_notion(class)
+    local title = el.attributes.title
+    if not title or title == "" then
+      title = pandoc.utils.stringify(pandoc.Pandoc(el.content))
+    end
+    return M.block(ntype, json.obj({ title = title }), el)
   end
 
   local ntype = schema.class_to_notion(class)

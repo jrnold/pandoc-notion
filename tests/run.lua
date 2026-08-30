@@ -18,6 +18,7 @@ local suites = {
   "block_golden_test",
   "block_completeness_test",
   "block_degrade_test",
+  "crosspair_test",
   "unit.tree_classify_test",
   "unit.tree_nest_test",
   "unit.tree_fix_test",

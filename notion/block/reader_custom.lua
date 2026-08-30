@@ -132,17 +132,29 @@ local function media_reader(class)
     local color = json.color_to_ast(json.get(payload, "color"))
     if color then attributes[#attributes + 1] = { "color", color } end
 
-    local body
-    if url then
+    -- NFM has no <image> tag: a plain image is `![cap](url)`, which its reader
+    -- turns into an UNCLASSED Figure holding an Image. audio/video/file/pdf do
+    -- have tags, and become classed Figures holding a Link. Emitting the classed
+    -- Link form for `image` produced a Figure the NFM writer could not render,
+    -- silently dropping the URL on any JSON -> NFM conversion.
+    local body, classes
+    if class == "image" then
+      classes = {}
       body = pandoc.Blocks({ pandoc.Plain({
-        pandoc.Link(caption, tostring(url)) }) })
+        pandoc.Image(caption, tostring(url or "")) }) })
     else
-      body = pandoc.Blocks({ pandoc.Plain(caption) })
+      classes = { class }
+      if url then
+        body = pandoc.Blocks({ pandoc.Plain({
+          pandoc.Link(caption, tostring(url)) }) })
+      else
+        body = pandoc.Blocks({ pandoc.Plain(caption) })
+      end
     end
 
     return pandoc.Figure(body,
       pandoc.Caption(pandoc.Blocks({ pandoc.Plain(caption) })),
-      pandoc.Attr(id_of(block), { class }, attributes))
+      pandoc.Attr(id_of(block), classes, attributes))
   end
 end
 
@@ -209,6 +221,42 @@ reader.CUSTOM.synced_block = function(block, payload)
   end
   return pandoc.Div(body, pandoc.Attr(id_of(block), { "synced-block" }, {}))
 end
+
+-- ---- toggle, child_page, child_database ------------------------------------
+
+-- NFM writes a toggle as <details><summary>T</summary>...</details>, whose AST
+-- is Div.toggle[ Div.summary[Plain T], children... ]. The generic path put the
+-- title directly in the toggle Div, one level too shallow, so the NFM writer
+-- emitted no <summary> at all.
+reader.CUSTOM.toggle = function(block, payload)
+  local content = pandoc.Blocks({
+    pandoc.Div(pandoc.Blocks({ pandoc.Plain(inlines_of(payload)) }),
+               pandoc.Attr("", { "summary" }, {})),
+  })
+  content = content .. reader.convert(reader.children_of(block, payload))
+
+  local attributes = {}
+  local color = json.color_to_ast(json.get(payload, "color"))
+  if color then attributes[#attributes + 1] = { "color", color } end
+  return pandoc.Div(content, pandoc.Attr(id_of(block), { "toggle" }, attributes))
+end
+
+-- child_page/child_database carry `title` as a plain string. NFM spells these
+-- <page>Title</page> / <database>Title</database>, i.e. the title is CONTENT,
+-- not an attribute -- the generic path made it an attribute and left the body
+-- empty, so NFM emitted <page title="..."></page>.
+local function child_reader(class)
+  return function(block, payload)
+    local title = json.get(payload, "title")
+    local content = pandoc.Blocks({})
+    if title and tostring(title) ~= "" then
+      content:insert(pandoc.Plain(pandoc.Inlines(tostring(title))))
+    end
+    return pandoc.Div(content, pandoc.Attr(id_of(block), { class }, {}))
+  end
+end
+reader.CUSTOM.child_page     = child_reader("page")
+reader.CUSTOM.child_database = child_reader("database")
 
 -- ---- block-level mention --------------------------------------------------
 

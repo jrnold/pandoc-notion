@@ -246,7 +246,12 @@ local hosted = reader.convert({ { type = "image",
   image = { type = "file", file = { url = "https://s3/i.png",
                                     expiry_time = "2026-08-29T00:00:00Z" },
             caption = {} } } })
-t.eq(hosted[1].content[1].content[1].target, "https://s3/i.png", "file.url is used")
+-- NFM has no <image> tag, so a plain image is an UNCLASSED Figure holding an
+-- Image (matching `![cap](url)`), not a classed Figure holding a Link like
+-- audio/video/file/pdf. The URL therefore lives on Image.src.
+t.eq(hosted[1].classes, pandoc.List({}), "an image Figure carries no class")
+t.eq(hosted[1].content[1].content[1].t, "Image", "and holds an Image, not a Link")
+t.eq(hosted[1].content[1].content[1].src, "https://s3/i.png", "file.url is used")
 t.eq(hosted[1].attributes.expiry_time, nil, "expiry_time is dropped")
 
 -- A file_upload has no URL at all.
