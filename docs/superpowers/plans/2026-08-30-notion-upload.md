@@ -1159,7 +1159,7 @@ def _pack(parent, blocks, lim, path, requests) -> list[tuple]:
 - [ ] **Step 4: Run test to verify it passes**
 
 Run: `cd notion-upload && uv run pytest tests/test_planner.py -v`
-Expected: PASS, 12 tests.
+Expected: PASS, 16 tests.
 
 - [ ] **Step 5: Commit**
 
@@ -2643,7 +2643,7 @@ is the same property §5.1 exists to guarantee.
 ```
 
 Run: `cd notion-upload && uv run pytest tests/test_cli.py -v`
-Expected: PASS, 15 tests.
+Expected: PASS, 16 tests.
 
 - [ ] **Step 5: Run the whole suite**
 
