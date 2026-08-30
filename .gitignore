@@ -1,0 +1,4 @@
+# Project-local LuaRocks tree for the optional dev tools (see `make deps`).
+# Not needed to run the readers/writers or the test suite, which depend on
+# nothing but pandoc.
+.luarocks/

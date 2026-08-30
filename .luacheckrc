@@ -60,6 +60,6 @@ files["tests/**/*.lua"] = {
 
 -- types/ holds LuaLS definition stubs (---@meta): comments only, never
 -- loaded at runtime, and they intentionally assign to pandoc globals.
--- types/ holds vendored LuaLS definition stubs (---@meta): comments only,
--- never loaded at runtime, and third-party code we do not lint.
-exclude_files = { ".superpowers/**", "types/**" }
+-- .luarocks/ is the project-local rocks tree from `make deps`: third-party
+-- LuaCATS definition files, which are comments only and not ours to lint.
+exclude_files = { ".superpowers/**", ".luarocks/**" }

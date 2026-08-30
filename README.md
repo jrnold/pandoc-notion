@@ -91,28 +91,40 @@ rather than raw HTML, because NFM's HTML vocabulary is a closed set.
 ## Tests
 
 ```bash
-pandoc lua tests/run.lua
+pandoc lua tests/run.lua      # or: make test
 ```
 
-## Linting
+The readers, writers and test suite depend on **nothing but pandoc**. That is a
+design constraint, not an accident — see §1 of the design document.
+
+## Development tooling
+
+Optional, and deliberately kept off the runtime path. Everything here is
+installed into a project-local LuaRocks tree at `.luarocks/`, which is
+git-ignored:
 
 ```bash
-luacheck .
+make deps        # install the tooling
+make check       # test + lint + typecheck
 ```
 
-Optional, and the only tool outside pandoc this repo mentions — the test
-suite itself still has zero dependencies. `brew install luacheck`, or
-`luarocks install luacheck`.
+Individually:
 
-### Type checking
+| target | tool | install |
+|---|---|---|
+| `make test` | pandoc | already required |
+| `make lint` | [luacheck](https://luacheck.readthedocs.io/) | `brew install luacheck` |
+| `make typecheck` | [lua-language-server](https://luals.github.io) | `brew install lua-language-server` |
 
-```bash
-lua-language-server --check . --checklevel=Warning
-```
-
-Also optional. `brew install lua-language-server`. Type information comes from
-LuaCATS annotations in `types/pandoc-annotations/` — comments only, so they have
-no effect on `pandoc lua`. See that directory's README for provenance.
+`make deps` fetches LuaCATS type annotations for pandoc's Lua API. They come
+from a fork of [lua-craters/pandoc-annotations](https://github.com/lua-craters/pandoc-annotations),
+because upstream states it was confirmed against pandoc 3.10 and has six
+signature defects against 3.11 — most consequentially `TableBody`, whose first
+two parameters are documented in the wrong order. The fork is
+[jrnold/pandoc-annotations](https://github.com/jrnold/pandoc-annotations),
+branch `pandoc-3.11-fixes`; each fix was verified by running the constructor in
+`pandoc lua` rather than reading the manual. Upstream: 149 diagnostics here.
+The fork: none.
 
 ### Configuration
 
@@ -127,6 +139,10 @@ pandoc ships no `.luacheckrc` of its own, so there is no upstream config to
 follow; the settings here follow pandoc's *calling* conventions instead — each
 entry point defines exactly one global (`Reader` or `Writer`), declared
 per file so a stray global anywhere else is still reported.
+
+Shadowing checks are disabled for `tests/**` only. Those suites are flat
+top-to-bottom scripts where each case declares its own `src` or `out`; reusing
+the name per case is the idiom there. They stay on for production code.
 
 ## Notion block JSON
 
