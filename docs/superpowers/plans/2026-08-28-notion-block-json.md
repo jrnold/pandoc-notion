@@ -3764,9 +3764,16 @@ local bj = require "support.blockjson"
 -- These exist to PIN the design doc 4 convention, not to check correctness --
 -- the round-trip test covers that. A refactor cannot silently rename a class
 -- and still pass.
+-- bj.list() returns an empty table for a missing or misnamed directory, so a
+-- corpus that silently vanished would make every loop below pass vacuously.
+-- Count what was actually checked and assert the total, matching the house
+-- pattern in tests/golden_test.lua.
+local checked = 0
+
 for _, subdir in ipairs({ "blocks", "inlines", "properties",
                           "unhydrated", "adversarial" }) do
   for _, path in ipairs(bj.list(subdir)) do
+    checked = checked + 1
     local name   = path:match("([^/\\]+)%.json$")
     local golden = bj.ROOT .. "/tests/golden/json/" .. subdir .. "/" .. name .. ".native"
     local fh = io.open(golden, "rb")
@@ -3780,6 +3787,8 @@ for _, subdir in ipairs({ "blocks", "inlines", "properties",
     end
   end
 end
+
+t.eq(checked, 38, "every fixture has a golden, checked " .. checked)
 ```
 
 - [ ] **Step 2: Write the completeness test**
@@ -3930,7 +3939,11 @@ t.eq(#pandoc.json.decode(out), 0, "a foreign RawBlock is dropped")
 t.truthy(log:find("Not rendering RawBlock", 1, true), "and logs at INFO")
 
 -- A genuine drop: block content inside a table cell.
-out, log = convert("+---------+\n| - a\n  - b   |\n+---------+\n")
+-- This grid table must actually parse as a Table with a two-Para cell. An
+-- earlier draft used a fixture whose continuation line lacked its trailing
+-- `|`, so pandoc parsed the whole thing as one Para of literal text and the
+-- assertion below could never have exercised the path it names.
+out, log = convert("+---------+\n| a       |\n|         |\n| b       |\n+---------+\n")
 t.truthy(log:find("Not rendering block content inside table cell", 1, true),
          "a multi-block cell logs at INFO")
 ```
