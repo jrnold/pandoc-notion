@@ -357,13 +357,16 @@ function M.convert(blocks)
   for _, el in ipairs(blocks or {}) do
     local handler = M.HANDLERS[el.t]
     if handler then
+      -- nil means the handler deliberately dropped the block (a foreign
+      -- RawBlock, say); a single block object goes in as-is; anything else is
+      -- a List of them, which a list handler returns.
       local produced = handler(el)
-      if produced == nil then
-        -- deliberately dropped
-      elseif produced.object == "block" then
-        out:insert(produced)
-      else
-        for _, b in ipairs(produced) do out:insert(b) end
+      if produced ~= nil then
+        if produced.object == "block" then
+          out:insert(produced)
+        else
+          for _, b in ipairs(produced) do out:insert(b) end
+        end
       end
     end
   end

@@ -11,7 +11,9 @@ local props    = require "notion.block.props"
 local reader   = require "notion.block.reader"
 require "notion.block.reader_custom"   -- registers the irregular types
 
-function Reader(input, opts)
+-- `_opts` is unused: this reader takes no options (the NFM reader uses
+-- opts.tab_stop; block JSON has no equivalent). pandoc fixes the signature.
+function Reader(input, _opts)
   local blocks, page = envelope.unwrap(json.decode_or_diagnose(tostring(input)))
   local doc = pandoc.Pandoc(reader.convert(blocks))
   if page then

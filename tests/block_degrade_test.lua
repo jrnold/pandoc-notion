@@ -68,3 +68,5 @@ t.truthy(log:find("Not rendering RawBlock", 1, true), "and logs at INFO")
 out, log = convert("+---------+\n| a       |\n|         |\n| b       |\n+---------+\n")
 t.truthy(log:find("Not rendering block content inside table cell", 1, true),
          "a multi-block cell logs at INFO")
+t.eq(pandoc.json.decode(out)[1].type, "table",
+     "and the table itself still converts -- the cell is flattened, not dropped")

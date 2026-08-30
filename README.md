@@ -94,6 +94,28 @@ rather than raw HTML, because NFM's HTML vocabulary is a closed set.
 pandoc lua tests/run.lua
 ```
 
+## Linting
+
+```bash
+luacheck .
+```
+
+Optional, and the only tool outside pandoc this repo mentions — the test
+suite itself still has zero dependencies. `brew install luacheck`, or
+`luarocks install luacheck`.
+
+`.luacheckrc` declares pandoc's globals as read-only. That list was enumerated
+from the interpreter rather than copied from documentation:
+
+```bash
+pandoc lua -e 'for k in pairs(_G) do print(k) end'
+```
+
+pandoc ships no `.luacheckrc` of its own, so there is no upstream config to
+follow; the settings here follow pandoc's *calling* conventions instead — each
+entry point defines exactly one global (`Reader` or `Writer`), declared
+per file so a stray global anywhere else is still reported.
+
 ## Notion block JSON
 
 `notion-block-reader.lua` and `notion-block-writer.lua` convert Notion's block

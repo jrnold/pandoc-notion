@@ -193,25 +193,28 @@ function M.parse(text, tab_stop)
                0)
       end
     else
-      local text, attrs, order
+      -- Named line_text, not text: `text` is M.parse's own argument (the whole
+      -- document), and shadowing it here made the two indistinguishable at a
+      -- glance in a function that manipulates both.
+      local line_text, attrs, order
       if n.kind == "code" then
         -- collapse() already peeled the fence's info string, carrying the
         -- attributes on the collapsed node itself.
-        text, attrs, order = n.text, n.attrs, n.attr_order
+        line_text, attrs, order = n.text, n.attrs, n.attr_order
       elseif n.kind == "tag_open" or n.kind == "self_closing" or n.kind == "tag_inline" then
         local body = n.text:match("^<[%w_%-]+%s*(.-)%s*/?>") or ""
         attrs, order = attr.parse(body)
-        text = n.text
+        line_text = n.text
       else
         -- Inside a tag-balanced container, nesting comes from tag balance,
         -- not indentation, so leading spaces there are purely cosmetic
         -- (Notion's own docs space-indent container children).
         local raw = n.text
         if #open > 0 then raw = raw:gsub("^ +", "") end
-        text, attrs, order = attr.peel(raw)
+        line_text, attrs, order = attr.peel(raw)
       end
 
-      local node = { kind = n.kind, tag = n.tag, info = n.info, text = text,
+      local node = { kind = n.kind, tag = n.tag, info = n.info, text = line_text,
                      attrs = attrs, attr_order = order, children = {} }
 
       -- Inside a tag container, indentation is cosmetic: attach directly.

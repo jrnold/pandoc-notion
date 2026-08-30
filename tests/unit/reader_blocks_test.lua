@@ -190,7 +190,8 @@ local MENTION_LINES = {
   { name = "mention-user",        line = '<mention-user url="https://notion.so/u">Ada</mention-user>' },
   { name = "mention-page",        line = '<mention-page url="https://notion.so/p">Page</mention-page>' },
   { name = "mention-database",    line = '<mention-database url="https://notion.so/d">Database</mention-database>' },
-  { name = "mention-data-source", line = '<mention-data-source url="https://notion.so/ds">Source</mention-data-source>' },
+  { name = "mention-data-source",
+    line = '<mention-data-source url="https://notion.so/ds">Source</mention-data-source>' },
   { name = "mention-agent",       line = '<mention-agent url="https://notion.so/a">Agent</mention-agent>' },
   { name = "mention-date",        line = '<mention-date start="2026-01-01"/>' },
 }

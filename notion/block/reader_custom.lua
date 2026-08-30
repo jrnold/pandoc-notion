@@ -210,7 +210,9 @@ reader.CUSTOM.table = function(block, payload)
 end
 
 -- A stray table_row outside a table: recovered, not fatal.
-reader.CUSTOM.table_row = function(block, payload)
+-- `_block` is unused: a stray row has no id worth carrying, but the
+-- dispatch contract fixes the signature.
+reader.CUSTOM.table_row = function(_block, payload)
   return pandoc.Plain(richtext.to_inlines((json.get(payload, "cells") or {})[1]))
 end
 

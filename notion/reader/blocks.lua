@@ -313,7 +313,7 @@ local function block_for(node)
     return pandoc.HorizontalRule()
   end
 
-  local hashes, htext = text:match("^(#+)%s(.*)$")
+  local hashes = text:match("^(#+)%s.*$")  -- body unused here
   if hashes and #hashes <= 6 then
     local level = math.min(#hashes, 4)
     local header = pandoc.Header(level, inlines.read(leaf_text(node)), attr_of(node))
