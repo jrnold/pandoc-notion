@@ -142,14 +142,23 @@ pandoc `Attr` identifier slot. Timestamps, `created_by`, `last_edited_by`,
 `parent`, `archived` and `in_trash` are all re-derived by the server and are
 rejected on write.
 
-**NFM can say things the block API cannot.** Converting NFM → JSON → NFM loses
-a handful of NFM-only attributes, because the corresponding Notion block has no
-field for them: `url` on `<page>`, `<database>`, `<unknown>` and an original
-`<synced_block>`; `inline` on `<database>`; `{color=}` on an image;
-`startTime`/`timeZone` on `<mention-date>`. An `:emoji:` shortcode returns as
-the emoji character, and a `[^URL]` citation degrades to a link on the URL.
+**NFM can say a few things the block API cannot.** Converting NFM → JSON → NFM
+loses six NFM-only constructs, because the corresponding Notion block has no
+field for them at all:
+
+| lost | why |
+|---|---|
+| `url` on `<page>`, `<database>` | `child_page`/`child_database` carry only `title` |
+| `inline` on `<database>` | no such field on the block |
+| `url` on an original `<synced_block>` | an original has `synced_from: null` and no url |
+| `url` on `<unknown>` | `unsupported` carries only `block_type` |
+| `{color=}` on an image | Notion's image block has no colour field |
+| `:shortcode:` spelling of an emoji | Notion stores the character, not the name |
+| `[^URL]` citation | no citation construct; degrades to a link on the URL, preserving the source |
+
 This is the mirror of the better-known asymmetry in the other direction, where
-the API's block-type set is larger than NFM's. Each case is enumerated with its
-reason in `tests/crosspair_test.lua`.
+the API's block-type set is larger than NFM's. Inventing fields for these would
+emit JSON the API rejects. Each case is enumerated with its reason in
+`tests/crosspair_test.lua`; everything else round-trips unchanged.
 
 [nfm]: https://developers.notion.com/guides/data-apis/enhanced-markdown
