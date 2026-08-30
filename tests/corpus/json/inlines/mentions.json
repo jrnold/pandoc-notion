@@ -1,0 +1,233 @@
+[
+    {
+        "object": "block",
+        "type": "paragraph",
+        "paragraph": {
+            "rich_text": [
+                {
+                    "type": "mention",
+                    "mention": {
+                        "type": "user",
+                        "user": {
+                            "id": "u-1",
+                            "url": "u-1"
+                        }
+                    },
+                    "annotations": {
+                        "bold": false,
+                        "italic": false,
+                        "strikethrough": false,
+                        "underline": false,
+                        "code": false,
+                        "color": "default"
+                    },
+                    "plain_text": "@User"
+                },
+                {
+                    "type": "text",
+                    "text": {
+                        "content": " "
+                    },
+                    "annotations": {
+                        "bold": false,
+                        "italic": false,
+                        "strikethrough": false,
+                        "underline": false,
+                        "code": false,
+                        "color": "default"
+                    },
+                    "plain_text": " "
+                },
+                {
+                    "type": "mention",
+                    "mention": {
+                        "type": "page",
+                        "page": {
+                            "id": "p-1",
+                            "url": "p-1"
+                        }
+                    },
+                    "annotations": {
+                        "bold": false,
+                        "italic": false,
+                        "strikethrough": false,
+                        "underline": false,
+                        "code": false,
+                        "color": "default"
+                    },
+                    "plain_text": "Page"
+                },
+                {
+                    "type": "text",
+                    "text": {
+                        "content": " "
+                    },
+                    "annotations": {
+                        "bold": false,
+                        "italic": false,
+                        "strikethrough": false,
+                        "underline": false,
+                        "code": false,
+                        "color": "default"
+                    },
+                    "plain_text": " "
+                },
+                {
+                    "type": "mention",
+                    "mention": {
+                        "type": "database",
+                        "database": {
+                            "id": "d-1",
+                            "url": "d-1"
+                        }
+                    },
+                    "annotations": {
+                        "bold": false,
+                        "italic": false,
+                        "strikethrough": false,
+                        "underline": false,
+                        "code": false,
+                        "color": "default"
+                    },
+                    "plain_text": "Database"
+                },
+                {
+                    "type": "text",
+                    "text": {
+                        "content": " "
+                    },
+                    "annotations": {
+                        "bold": false,
+                        "italic": false,
+                        "strikethrough": false,
+                        "underline": false,
+                        "code": false,
+                        "color": "default"
+                    },
+                    "plain_text": " "
+                },
+                {
+                    "type": "mention",
+                    "mention": {
+                        "type": "date",
+                        "date": {
+                            "start": "2026-01-01"
+                        }
+                    },
+                    "annotations": {
+                        "bold": false,
+                        "italic": false,
+                        "strikethrough": false,
+                        "underline": false,
+                        "code": false,
+                        "color": "default"
+                    },
+                    "plain_text": "Jan 1"
+                },
+                {
+                    "type": "text",
+                    "text": {
+                        "content": " "
+                    },
+                    "annotations": {
+                        "bold": false,
+                        "italic": false,
+                        "strikethrough": false,
+                        "underline": false,
+                        "code": false,
+                        "color": "default"
+                    },
+                    "plain_text": " "
+                },
+                {
+                    "type": "mention",
+                    "mention": {
+                        "type": "date",
+                        "date": {
+                            "start": "2026-01-01",
+                            "end": "2026-01-05"
+                        }
+                    },
+                    "annotations": {
+                        "bold": false,
+                        "italic": false,
+                        "strikethrough": false,
+                        "underline": false,
+                        "code": false,
+                        "color": "default"
+                    },
+                    "plain_text": "Jan 1 to Jan 5"
+                },
+                {
+                    "type": "text",
+                    "text": {
+                        "content": " "
+                    },
+                    "annotations": {
+                        "bold": false,
+                        "italic": false,
+                        "strikethrough": false,
+                        "underline": false,
+                        "code": false,
+                        "color": "default"
+                    },
+                    "plain_text": " "
+                },
+                {
+                    "type": "mention",
+                    "mention": {
+                        "type": "link_preview",
+                        "link_preview": {
+                            "id": "https://example.com",
+                            "url": "https://example.com"
+                        }
+                    },
+                    "annotations": {
+                        "bold": false,
+                        "italic": false,
+                        "strikethrough": false,
+                        "underline": false,
+                        "code": false,
+                        "color": "default"
+                    },
+                    "plain_text": "https://example.com"
+                },
+                {
+                    "type": "text",
+                    "text": {
+                        "content": " "
+                    },
+                    "annotations": {
+                        "bold": false,
+                        "italic": false,
+                        "strikethrough": false,
+                        "underline": false,
+                        "code": false,
+                        "color": "default"
+                    },
+                    "plain_text": " "
+                },
+                {
+                    "type": "mention",
+                    "mention": {
+                        "type": "template_mention",
+                        "template_mention": {
+                            "type": "template_mention_date",
+                            "template_mention_date": "today"
+                        }
+                    },
+                    "annotations": {
+                        "bold": false,
+                        "italic": false,
+                        "strikethrough": false,
+                        "underline": false,
+                        "code": false,
+                        "color": "default"
+                    },
+                    "plain_text": "Today"
+                }
+            ],
+            "color": "default"
+        }
+    }
+]

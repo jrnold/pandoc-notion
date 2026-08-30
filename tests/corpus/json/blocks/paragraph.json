@@ -1,0 +1,32 @@
+[
+  {
+    "object": "block",
+    "type": "paragraph",
+    "paragraph": {
+      "rich_text": [
+        {
+          "type": "text",
+          "text": { "content": "Plain text with " },
+          "annotations": { "bold": false, "italic": false, "strikethrough": false,
+                           "underline": false, "code": false, "color": "default" },
+          "plain_text": "Plain text with "
+        },
+        {
+          "type": "text",
+          "text": { "content": "bold" },
+          "annotations": { "bold": true, "italic": false, "strikethrough": false,
+                           "underline": false, "code": false, "color": "default" },
+          "plain_text": "bold"
+        },
+        {
+          "type": "text",
+          "text": { "content": " inside." },
+          "annotations": { "bold": false, "italic": false, "strikethrough": false,
+                           "underline": false, "code": false, "color": "default" },
+          "plain_text": " inside."
+        }
+      ],
+      "color": "default"
+    }
+  }
+]

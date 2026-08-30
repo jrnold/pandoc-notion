@@ -1,0 +1,76 @@
+[
+    {
+        "object": "block",
+        "type": "toggle",
+        "toggle": {
+            "rich_text": [
+                {
+                    "type": "text",
+                    "text": {
+                        "content": "Click to expand"
+                    },
+                    "annotations": {
+                        "bold": false,
+                        "italic": false,
+                        "strikethrough": false,
+                        "underline": false,
+                        "code": false,
+                        "color": "default"
+                    },
+                    "plain_text": "Click to expand"
+                }
+            ],
+            "color": "default",
+            "children": [
+                {
+                    "object": "block",
+                    "type": "paragraph",
+                    "paragraph": {
+                        "rich_text": [
+                            {
+                                "type": "text",
+                                "text": {
+                                    "content": "First child."
+                                },
+                                "annotations": {
+                                    "bold": false,
+                                    "italic": false,
+                                    "strikethrough": false,
+                                    "underline": false,
+                                    "code": false,
+                                    "color": "default"
+                                },
+                                "plain_text": "First child."
+                            }
+                        ],
+                        "color": "default"
+                    }
+                },
+                {
+                    "object": "block",
+                    "type": "paragraph",
+                    "paragraph": {
+                        "rich_text": [
+                            {
+                                "type": "text",
+                                "text": {
+                                    "content": "Second child."
+                                },
+                                "annotations": {
+                                    "bold": false,
+                                    "italic": false,
+                                    "strikethrough": false,
+                                    "underline": false,
+                                    "code": false,
+                                    "color": "default"
+                                },
+                                "plain_text": "Second child."
+                            }
+                        ],
+                        "color": "default"
+                    }
+                }
+            ]
+        }
+    }
+]

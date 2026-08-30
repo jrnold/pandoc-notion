@@ -1,0 +1,9 @@
+[
+    {
+        "object": "block",
+        "type": "some_future_type",
+        "some_future_type": {
+            "foo": "bar"
+        }
+    }
+]

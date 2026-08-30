@@ -1,0 +1,170 @@
+{
+    "object": "page",
+    "id": "pg-1",
+    "properties": {
+        "Name": {
+            "type": "title",
+            "title": [
+                {
+                    "type": "text",
+                    "text": {
+                        "content": "My Page"
+                    },
+                    "annotations": {
+                        "bold": false,
+                        "italic": false,
+                        "strikethrough": false,
+                        "underline": false,
+                        "code": false,
+                        "color": "default"
+                    },
+                    "plain_text": "My Page"
+                }
+            ]
+        },
+        "Notes": {
+            "type": "rich_text",
+            "rich_text": [
+                {
+                    "type": "text",
+                    "text": {
+                        "content": "Some notes"
+                    },
+                    "annotations": {
+                        "bold": false,
+                        "italic": false,
+                        "strikethrough": false,
+                        "underline": false,
+                        "code": false,
+                        "color": "default"
+                    },
+                    "plain_text": "Some notes"
+                }
+            ]
+        },
+        "Score": {
+            "type": "number",
+            "number": 87
+        },
+        "Stage": {
+            "type": "select",
+            "select": {
+                "name": "Todo"
+            }
+        },
+        "State": {
+            "type": "status",
+            "status": {
+                "name": "In Progress"
+            }
+        },
+        "Tags": {
+            "type": "multi_select",
+            "multi_select": [
+                {
+                    "name": "A"
+                },
+                {
+                    "name": "B"
+                }
+            ]
+        },
+        "Owners": {
+            "type": "people",
+            "people": [
+                {
+                    "name": "Alice"
+                },
+                {
+                    "name": "Bob"
+                }
+            ]
+        },
+        "Related": {
+            "type": "relation",
+            "relation": [
+                {
+                    "id": "r-1"
+                },
+                {
+                    "id": "r-2"
+                }
+            ]
+        },
+        "When": {
+            "type": "date",
+            "date": {
+                "start": "2026-01-01",
+                "end": "2026-01-05"
+            }
+        },
+        "Done": {
+            "type": "checkbox",
+            "checkbox": true
+        },
+        "Site": {
+            "type": "url",
+            "url": "https://example.com"
+        },
+        "Contact": {
+            "type": "email",
+            "email": "a@example.com"
+        },
+        "Phone": {
+            "type": "phone_number",
+            "phone_number": "555-1234"
+        },
+        "Attachments": {
+            "type": "files",
+            "files": [
+                {
+                    "type": "external",
+                    "name": "a.pdf",
+                    "external": {
+                        "url": "https://example.com/a.pdf"
+                    }
+                }
+            ]
+        },
+        "Computed": {
+            "type": "formula",
+            "formula": {
+                "type": "number",
+                "number": 42
+            }
+        },
+        "Summed": {
+            "type": "rollup",
+            "rollup": {
+                "type": "number",
+                "number": 7
+            }
+        },
+        "Created": {
+            "type": "created_time",
+            "created_time": "2026-01-01T00:00:00.000Z"
+        },
+        "Edited": {
+            "type": "last_edited_time",
+            "last_edited_time": "2026-01-02T00:00:00.000Z"
+        },
+        "Author": {
+            "type": "created_by",
+            "created_by": {
+                "name": "Alice"
+            }
+        },
+        "Editor": {
+            "type": "last_edited_by",
+            "last_edited_by": {
+                "name": "Bob"
+            }
+        },
+        "Serial": {
+            "type": "unique_id",
+            "unique_id": {
+                "number": 1
+            }
+        }
+    }
+}

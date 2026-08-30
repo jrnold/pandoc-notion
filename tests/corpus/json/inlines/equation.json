@@ -1,0 +1,56 @@
+[
+    {
+        "object": "block",
+        "type": "paragraph",
+        "paragraph": {
+            "rich_text": [
+                {
+                    "type": "text",
+                    "text": {
+                        "content": "The formula "
+                    },
+                    "annotations": {
+                        "bold": false,
+                        "italic": false,
+                        "strikethrough": false,
+                        "underline": false,
+                        "code": false,
+                        "color": "default"
+                    },
+                    "plain_text": "The formula "
+                },
+                {
+                    "type": "equation",
+                    "equation": {
+                        "expression": "e^{i\\pi}+1=0"
+                    },
+                    "annotations": {
+                        "bold": false,
+                        "italic": false,
+                        "strikethrough": false,
+                        "underline": false,
+                        "code": false,
+                        "color": "default"
+                    },
+                    "plain_text": "e^{i\\pi}+1=0"
+                },
+                {
+                    "type": "text",
+                    "text": {
+                        "content": " is beautiful."
+                    },
+                    "annotations": {
+                        "bold": false,
+                        "italic": false,
+                        "strikethrough": false,
+                        "underline": false,
+                        "code": false,
+                        "color": "default"
+                    },
+                    "plain_text": " is beautiful."
+                }
+            ],
+            "color": "default"
+        }
+    }
+]

@@ -1,0 +1,97 @@
+[
+  {
+    "object": "block",
+    "type": "table",
+    "table": {
+      "table_width": 2,
+      "has_column_header": false,
+      "has_row_header": true,
+      "children": [
+        {
+          "object": "block",
+          "type": "table_row",
+          "table_row": {
+            "cells": [
+              [
+                {
+                  "type": "text",
+                  "text": {
+                    "content": "Row A"
+                  },
+                  "annotations": {
+                    "bold": false,
+                    "italic": false,
+                    "strikethrough": false,
+                    "underline": false,
+                    "code": false,
+                    "color": "default"
+                  },
+                  "plain_text": "Row A"
+                }
+              ],
+              [
+                {
+                  "type": "text",
+                  "text": {
+                    "content": "1"
+                  },
+                  "annotations": {
+                    "bold": false,
+                    "italic": false,
+                    "strikethrough": false,
+                    "underline": false,
+                    "code": false,
+                    "color": "default"
+                  },
+                  "plain_text": "1"
+                }
+              ]
+            ]
+          }
+        },
+        {
+          "object": "block",
+          "type": "table_row",
+          "table_row": {
+            "cells": [
+              [
+                {
+                  "type": "text",
+                  "text": {
+                    "content": "Row B"
+                  },
+                  "annotations": {
+                    "bold": false,
+                    "italic": false,
+                    "strikethrough": false,
+                    "underline": false,
+                    "code": false,
+                    "color": "default"
+                  },
+                  "plain_text": "Row B"
+                }
+              ],
+              [
+                {
+                  "type": "text",
+                  "text": {
+                    "content": "2"
+                  },
+                  "annotations": {
+                    "bold": false,
+                    "italic": false,
+                    "strikethrough": false,
+                    "underline": false,
+                    "code": false,
+                    "color": "default"
+                  },
+                  "plain_text": "2"
+                }
+              ]
+            ]
+          }
+        }
+      ]
+    }
+  }
+]

@@ -1,0 +1,9 @@
+[
+    {
+        "object": "block",
+        "type": "equation",
+        "equation": {
+            "expression": "e^{i\\pi}+1=0"
+        }
+    }
+]

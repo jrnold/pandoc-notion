@@ -1,0 +1,9 @@
+[
+    {
+        "object": "block",
+        "type": "unsupported",
+        "unsupported": {
+            "block_type": "widget"
+        }
+    }
+]

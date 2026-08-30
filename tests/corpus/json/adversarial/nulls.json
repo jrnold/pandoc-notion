@@ -1,0 +1,25 @@
+[
+  {
+    "object": "block",
+    "id": "b-1",
+    "parent": null,
+    "type": "paragraph",
+    "paragraph": {
+      "rich_text": [
+        {
+          "type": "text",
+          "text": { "content": "text", "link": null },
+          "annotations": { "bold": false, "italic": false, "strikethrough": false,
+                           "underline": false, "code": false, "color": "default" },
+          "plain_text": "text", "href": null
+        }
+      ],
+      "color": "default"
+    }
+  },
+  {
+    "object": "block",
+    "type": "synced_block",
+    "synced_block": { "synced_from": null, "children": [] }
+  }
+]

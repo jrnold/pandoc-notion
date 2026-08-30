@@ -1,0 +1,88 @@
+[
+  {
+    "object": "block",
+    "type": "heading_1",
+    "heading_1": {
+      "rich_text": [
+        {
+          "type": "text",
+          "text": { "content": "Heading one" },
+          "annotations": { "bold": false, "italic": false, "strikethrough": false,
+                           "underline": false, "code": false, "color": "default" },
+          "plain_text": "Heading one"
+        }
+      ],
+      "color": "default",
+      "is_toggleable": false
+    }
+  },
+  {
+    "object": "block",
+    "type": "heading_2",
+    "heading_2": {
+      "rich_text": [
+        {
+          "type": "text",
+          "text": { "content": "Heading two" },
+          "annotations": { "bold": false, "italic": false, "strikethrough": false,
+                           "underline": false, "code": false, "color": "default" },
+          "plain_text": "Heading two"
+        }
+      ],
+      "color": "default",
+      "is_toggleable": false
+    }
+  },
+  {
+    "object": "block",
+    "type": "heading_3",
+    "heading_3": {
+      "rich_text": [
+        {
+          "type": "text",
+          "text": { "content": "Toggleable, no children" },
+          "annotations": { "bold": false, "italic": false, "strikethrough": false,
+                           "underline": false, "code": false, "color": "default" },
+          "plain_text": "Toggleable, no children"
+        }
+      ],
+      "color": "default",
+      "is_toggleable": true
+    }
+  },
+  {
+    "object": "block",
+    "type": "heading_4",
+    "heading_4": {
+      "rich_text": [
+        {
+          "type": "text",
+          "text": { "content": "Toggleable, with children" },
+          "annotations": { "bold": false, "italic": false, "strikethrough": false,
+                           "underline": false, "code": false, "color": "default" },
+          "plain_text": "Toggleable, with children"
+        }
+      ],
+      "color": "default",
+      "is_toggleable": true,
+      "children": [
+        {
+          "object": "block",
+          "type": "paragraph",
+          "paragraph": {
+            "rich_text": [
+              {
+                "type": "text",
+                "text": { "content": "Nested body." },
+                "annotations": { "bold": false, "italic": false, "strikethrough": false,
+                                 "underline": false, "code": false, "color": "default" },
+                "plain_text": "Nested body."
+              }
+            ],
+            "color": "default"
+          }
+        }
+      ]
+    }
+  }
+]

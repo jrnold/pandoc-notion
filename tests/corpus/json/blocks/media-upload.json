@@ -1,0 +1,13 @@
+[
+    {
+        "object": "block",
+        "type": "pdf",
+        "pdf": {
+            "type": "file_upload",
+            "file_upload": {
+                "id": "43833259-73a7-4b8f-9b1e-000000000001"
+            },
+            "caption": []
+        }
+    }
+]

@@ -1,0 +1,83 @@
+[
+    {
+        "object": "block",
+        "type": "audio",
+        "audio": {
+            "type": "external",
+            "external": {
+                "url": "https://example.com/clip.mp3"
+            },
+            "caption": [
+                {
+                    "type": "text",
+                    "text": {
+                        "content": "Audio clip."
+                    },
+                    "annotations": {
+                        "bold": false,
+                        "italic": false,
+                        "strikethrough": false,
+                        "underline": false,
+                        "code": false,
+                        "color": "default"
+                    },
+                    "plain_text": "Audio clip."
+                }
+            ]
+        }
+    },
+    {
+        "object": "block",
+        "type": "video",
+        "video": {
+            "type": "external",
+            "external": {
+                "url": "https://example.com/clip.mp4"
+            },
+            "caption": [
+                {
+                    "type": "text",
+                    "text": {
+                        "content": "Video clip."
+                    },
+                    "annotations": {
+                        "bold": false,
+                        "italic": false,
+                        "strikethrough": false,
+                        "underline": false,
+                        "code": false,
+                        "color": "default"
+                    },
+                    "plain_text": "Video clip."
+                }
+            ]
+        }
+    },
+    {
+        "object": "block",
+        "type": "file",
+        "file": {
+            "type": "external",
+            "external": {
+                "url": "https://example.com/doc.zip"
+            },
+            "caption": [
+                {
+                    "type": "text",
+                    "text": {
+                        "content": "Attachment."
+                    },
+                    "annotations": {
+                        "bold": false,
+                        "italic": false,
+                        "strikethrough": false,
+                        "underline": false,
+                        "code": false,
+                        "color": "default"
+                    },
+                    "plain_text": "Attachment."
+                }
+            ]
+        }
+    }
+]

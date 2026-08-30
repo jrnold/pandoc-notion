@@ -1,0 +1,43 @@
+[
+  {
+    "object": "block",
+    "type": "code",
+    "code": {
+      "rich_text": [
+        {
+          "type": "text",
+          "text": {
+            "content": "if x < 1 and y > 2:\n    print(\"path\\to\\file\")"
+          },
+          "annotations": {
+            "bold": false,
+            "italic": false,
+            "strikethrough": false,
+            "underline": false,
+            "code": false,
+            "color": "default"
+          },
+          "plain_text": "if x < 1 and y > 2:\n    print(\"path\\to\\file\")"
+        }
+      ],
+      "language": "python",
+      "caption": [
+        {
+          "type": "text",
+          "text": {
+            "content": "Example snippet"
+          },
+          "annotations": {
+            "bold": false,
+            "italic": false,
+            "strikethrough": false,
+            "underline": false,
+            "code": false,
+            "color": "default"
+          },
+          "plain_text": "Example snippet"
+        }
+      ]
+    }
+  }
+]

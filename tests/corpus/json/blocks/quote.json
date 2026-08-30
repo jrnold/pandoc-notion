@@ -1,0 +1,52 @@
+[
+    {
+        "object": "block",
+        "type": "quote",
+        "quote": {
+            "rich_text": [
+                {
+                    "type": "text",
+                    "text": {
+                        "content": "A quoted line."
+                    },
+                    "annotations": {
+                        "bold": false,
+                        "italic": false,
+                        "strikethrough": false,
+                        "underline": false,
+                        "code": false,
+                        "color": "default"
+                    },
+                    "plain_text": "A quoted line."
+                }
+            ],
+            "color": "default",
+            "children": [
+                {
+                    "object": "block",
+                    "type": "paragraph",
+                    "paragraph": {
+                        "rich_text": [
+                            {
+                                "type": "text",
+                                "text": {
+                                    "content": "Attribution."
+                                },
+                                "annotations": {
+                                    "bold": false,
+                                    "italic": false,
+                                    "strikethrough": false,
+                                    "underline": false,
+                                    "code": false,
+                                    "color": "default"
+                                },
+                                "plain_text": "Attribution."
+                            }
+                        ],
+                        "color": "default"
+                    }
+                }
+            ]
+        }
+    }
+]

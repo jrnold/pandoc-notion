@@ -1,0 +1,13 @@
+[
+    {
+        "object": "block",
+        "type": "synced_block",
+        "synced_block": {
+            "synced_from": {
+                "type": "block_id",
+                "block_id": "b-9"
+            },
+            "children": []
+        }
+    }
+]

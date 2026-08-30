@@ -1,0 +1,29 @@
+[
+    {
+        "object": "block",
+        "type": "image",
+        "image": {
+            "type": "external",
+            "external": {
+                "url": "https://example.com/a.png"
+            },
+            "caption": [
+                {
+                    "type": "text",
+                    "text": {
+                        "content": "A diagram."
+                    },
+                    "annotations": {
+                        "bold": false,
+                        "italic": false,
+                        "strikethrough": false,
+                        "underline": false,
+                        "code": false,
+                        "color": "default"
+                    },
+                    "plain_text": "A diagram."
+                }
+            ]
+        }
+    }
+]

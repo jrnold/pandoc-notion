@@ -1,0 +1,18 @@
+[
+    {
+        "object": "block",
+        "type": "child_page",
+        "child_page": {
+            "title": "Subpage",
+            "color": "default"
+        }
+    },
+    {
+        "object": "block",
+        "type": "child_database",
+        "child_database": {
+            "title": "Tasks",
+            "color": "default"
+        }
+    }
+]

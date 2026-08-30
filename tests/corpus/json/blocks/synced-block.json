@@ -1,0 +1,35 @@
+[
+    {
+        "object": "block",
+        "type": "synced_block",
+        "synced_block": {
+            "synced_from": null,
+            "children": [
+                {
+                    "object": "block",
+                    "type": "paragraph",
+                    "paragraph": {
+                        "rich_text": [
+                            {
+                                "type": "text",
+                                "text": {
+                                    "content": "Original content."
+                                },
+                                "annotations": {
+                                    "bold": false,
+                                    "italic": false,
+                                    "strikethrough": false,
+                                    "underline": false,
+                                    "code": false,
+                                    "color": "default"
+                                },
+                                "plain_text": "Original content."
+                            }
+                        ],
+                        "color": "default"
+                    }
+                }
+            ]
+        }
+    }
+]

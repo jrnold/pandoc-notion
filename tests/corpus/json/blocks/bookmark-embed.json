@@ -1,0 +1,40 @@
+[
+    {
+        "object": "block",
+        "type": "bookmark",
+        "bookmark": {
+            "url": "https://example.com",
+            "caption": [
+                {
+                    "type": "text",
+                    "text": {
+                        "content": "A bookmark caption"
+                    },
+                    "annotations": {
+                        "bold": false,
+                        "italic": false,
+                        "strikethrough": false,
+                        "underline": false,
+                        "code": false,
+                        "color": "default"
+                    },
+                    "plain_text": "A bookmark caption"
+                }
+            ]
+        }
+    },
+    {
+        "object": "block",
+        "type": "embed",
+        "embed": {
+            "url": "https://example.com/embed"
+        }
+    },
+    {
+        "object": "block",
+        "type": "link_preview",
+        "link_preview": {
+            "url": "https://example.com/preview"
+        }
+    }
+]

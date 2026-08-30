@@ -1,0 +1,68 @@
+[
+    {
+        "object": "block",
+        "type": "meeting_notes",
+        "meeting_notes": {
+            "children": [
+                {
+                    "object": "block",
+                    "type": "paragraph",
+                    "paragraph": {
+                        "rich_text": [
+                            {
+                                "type": "text",
+                                "text": {
+                                    "content": "Notes body."
+                                },
+                                "annotations": {
+                                    "bold": false,
+                                    "italic": false,
+                                    "strikethrough": false,
+                                    "underline": false,
+                                    "code": false,
+                                    "color": "default"
+                                },
+                                "plain_text": "Notes body."
+                            }
+                        ],
+                        "color": "default"
+                    }
+                }
+            ],
+            "color": "default"
+        }
+    },
+    {
+        "object": "block",
+        "type": "transcription",
+        "transcription": {
+            "children": [
+                {
+                    "object": "block",
+                    "type": "paragraph",
+                    "paragraph": {
+                        "rich_text": [
+                            {
+                                "type": "text",
+                                "text": {
+                                    "content": "Transcript body."
+                                },
+                                "annotations": {
+                                    "bold": false,
+                                    "italic": false,
+                                    "strikethrough": false,
+                                    "underline": false,
+                                    "code": false,
+                                    "color": "default"
+                                },
+                                "plain_text": "Transcript body."
+                            }
+                        ],
+                        "color": "default"
+                    }
+                }
+            ],
+            "color": "default"
+        }
+    }
+]

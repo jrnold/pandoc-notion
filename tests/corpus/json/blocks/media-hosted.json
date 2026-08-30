@@ -1,0 +1,30 @@
+[
+    {
+        "object": "block",
+        "type": "image",
+        "image": {
+            "type": "file",
+            "file": {
+                "url": "https://s3.example.com/signed-abc",
+                "expiry_time": "2026-08-29T00:00:00.000Z"
+            },
+            "caption": [
+                {
+                    "type": "text",
+                    "text": {
+                        "content": "Uploaded screenshot."
+                    },
+                    "annotations": {
+                        "bold": false,
+                        "italic": false,
+                        "strikethrough": false,
+                        "underline": false,
+                        "code": false,
+                        "color": "default"
+                    },
+                    "plain_text": "Uploaded screenshot."
+                }
+            ]
+        }
+    }
+]

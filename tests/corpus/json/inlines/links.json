@@ -1,0 +1,46 @@
+[
+    {
+        "object": "block",
+        "type": "paragraph",
+        "paragraph": {
+            "rich_text": [
+                {
+                    "type": "text",
+                    "text": {
+                        "content": "via text.link",
+                        "link": {
+                            "url": "https://a.example.com"
+                        }
+                    },
+                    "annotations": {
+                        "bold": false,
+                        "italic": false,
+                        "strikethrough": false,
+                        "underline": false,
+                        "code": false,
+                        "color": "default"
+                    },
+                    "plain_text": "via text.link",
+                    "href": "https://a.example.com"
+                },
+                {
+                    "type": "text",
+                    "text": {
+                        "content": " via href only"
+                    },
+                    "annotations": {
+                        "bold": false,
+                        "italic": false,
+                        "strikethrough": false,
+                        "underline": false,
+                        "code": false,
+                        "color": "default"
+                    },
+                    "plain_text": " via href only",
+                    "href": "https://b.example.com"
+                }
+            ],
+            "color": "default"
+        }
+    }
+]

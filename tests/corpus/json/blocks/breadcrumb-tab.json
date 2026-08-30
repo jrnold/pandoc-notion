@@ -1,0 +1,88 @@
+[
+    {
+        "object": "block",
+        "type": "breadcrumb",
+        "breadcrumb": {}
+    },
+    {
+        "object": "block",
+        "type": "tab",
+        "tab": {
+            "children": [
+                {
+                    "object": "block",
+                    "type": "paragraph",
+                    "paragraph": {
+                        "rich_text": [
+                            {
+                                "type": "text",
+                                "text": {
+                                    "content": "Tab body."
+                                },
+                                "annotations": {
+                                    "bold": false,
+                                    "italic": false,
+                                    "strikethrough": false,
+                                    "underline": false,
+                                    "code": false,
+                                    "color": "default"
+                                },
+                                "plain_text": "Tab body."
+                            }
+                        ],
+                        "color": "default"
+                    }
+                }
+            ]
+        }
+    },
+    {
+        "object": "block",
+        "type": "template",
+        "template": {
+            "rich_text": [
+                {
+                    "type": "text",
+                    "text": {
+                        "content": "New page"
+                    },
+                    "annotations": {
+                        "bold": false,
+                        "italic": false,
+                        "strikethrough": false,
+                        "underline": false,
+                        "code": false,
+                        "color": "default"
+                    },
+                    "plain_text": "New page"
+                }
+            ],
+            "children": [
+                {
+                    "object": "block",
+                    "type": "paragraph",
+                    "paragraph": {
+                        "rich_text": [
+                            {
+                                "type": "text",
+                                "text": {
+                                    "content": "Template body."
+                                },
+                                "annotations": {
+                                    "bold": false,
+                                    "italic": false,
+                                    "strikethrough": false,
+                                    "underline": false,
+                                    "code": false,
+                                    "color": "default"
+                                },
+                                "plain_text": "Template body."
+                            }
+                        ],
+                        "color": "default"
+                    }
+                }
+            ]
+        }
+    }
+]
