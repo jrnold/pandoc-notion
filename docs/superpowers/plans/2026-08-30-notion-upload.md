@@ -104,6 +104,9 @@ packages = ["src/notion_upload"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+# tests/fake_notion.py and tests/strategies.py are imported by name from
+# several test modules, so tests/ must be importable.
+pythonpath = ["tests"]
 ```
 
 `notion-upload/tests/conftest.py`:
@@ -656,15 +659,20 @@ Expected: FAIL — `AttributeError: module 'notion_upload.limits' has no attribu
 
 - [ ] **Step 3: Write the implementation**
 
-Append to `notion-upload/src/notion_upload/limits.py`:
+Append the functions below to `notion-upload/src/notion_upload/limits.py`.
+**Put the three new imports at the top of the file**, beside the existing
+`from dataclasses import dataclass` — not in the middle where the functions
+land. (`document` imports only `errors`, so there is no import cycle.)
 
 ```python
+# --- at the top of the file, with the existing imports ---
 import json
 
 from . import document
 from .errors import LimitError
 
 
+# --- below the Limits dataclass and DEFAULT ---
 def serialized_size(value) -> int:
     """UTF-8 byte length of the compact JSON encoding.
 
@@ -1296,19 +1304,18 @@ class FakeNotion:
 
 
 def execute(plan, fake):
-    """Run a plan, resolving symbolic Refs to the ids the fake hands back."""
+    """Run a plan, resolving symbolic Refs to the ids the fake hands back.
+
+    One path for every wave, including the first, which is what cli.upload
+    does in production: the page is created empty and even plan[0] is an
+    ordinary append.
+    """
     created: dict[planner.Ref, str] = {}
     for position, request in enumerate(plan):
-        if request.parent is None:
-            fake.create_page(request.blocks)
-            results = fake.tree()[: len(request.blocks)]
-            ids = fake._children["page"][: len(request.blocks)]
-        else:
-            parent_id = created[request.parent]
-            fake.append(parent_id, request.blocks)
-            ids = fake._children[parent_id][-len(request.blocks):] if request.blocks else []
-        for index, block_id in enumerate(ids):
-            created[planner.Ref(position, index)] = block_id
+        parent_id = "page" if request.parent is None else created[request.parent]
+        results = fake.append(parent_id, request.blocks)
+        for index, block in enumerate(results):
+            created[planner.Ref(position, index)] = block["id"]
 ```
 
 `notion-upload/tests/strategies.py`:
@@ -1443,15 +1450,7 @@ def test_plan_roundtrips_under_cramped_limits(tree):
 - [ ] **Step 3: Run test to verify it fails**
 
 Run: `cd notion-upload && uv run pytest tests/test_roundtrip.py -v`
-Expected: FAIL — `ModuleNotFoundError: No module named 'fake_notion'` until `tests/` is on the path.
-
-Fix by adding to `pyproject.toml` under `[tool.pytest.ini_options]`:
-
-```toml
-pythonpath = ["tests"]
-```
-
-Then re-run. Expected next: the property tests fail if the planner has any packing or ordering bug; they pass otherwise.
+Expected: the property tests fail if the planner has any packing or ordering bug; they pass otherwise. (`pythonpath = ["tests"]` is already in `pyproject.toml` from Task 1, so `import fake_notion` resolves.)
 
 - [ ] **Step 4: Run the whole suite**
 
@@ -1491,6 +1490,8 @@ git commit -m "test(upload): add a constraint-enforcing fake and the round-trip 
 `notion-upload/tests/test_client.py`:
 
 ```python
+import json
+
 import httpx
 import pytest
 
@@ -1529,9 +1530,7 @@ def test_create_page_sends_title_as_the_only_property():
     captured = {}
 
     def handler(request):
-        captured.update(httpx.Response(200).json if False else {})
-        import json as _json
-        captured.update(_json.loads(request.content))
+        captured.update(json.loads(request.content))
         return httpx.Response(200, json={"id": "page-1", "url": "https://notion.so/p"})
 
     c, _ = make(handler)
@@ -2331,6 +2330,48 @@ def test_main_writes_only_the_url_to_stdout(tmp_path):
     assert out.getvalue().strip() == "https://notion.so/page-1"
 
 
+def test_media_is_rewritten_in_the_blocks_that_actually_get_uploaded(tmp_path):
+    """Regression: normalize() rebuilds blocks, so media must be discovered
+    after it. Discovering first leaves MediaRefs pointing at payload dicts
+    that are no longer in the tree, and the uploaded page keeps local paths.
+    """
+    (tmp_path / "img.png").write_bytes(b"\x89PNG")
+    # A paragraph long enough to force normalize() to rebuild, plus an image.
+    doc = tmp_path / "doc.json"
+    doc.write_text(json.dumps([
+        heading("T"),
+        {"object": "block", "type": "paragraph",
+         "paragraph": {"rich_text": [
+             {"type": "text", "text": {"content": "x" * 5000}}]}},
+        {"object": "block", "type": "image",
+         "image": {"type": "external", "external": {"url": "img.png"},
+                   "caption": []}},
+    ]))
+
+    class MediaClient(StubClient):
+        def create_file_upload(self, *, filename, content_type,
+                               mode="single_part", number_of_parts=None):
+            return {"id": "fu-1", "upload_url": "https://upload"}
+
+        def send_file_upload(self, upload_id, data, filename, content_type,
+                             part_number=None):
+            return {"id": upload_id, "status": "uploaded"}
+
+    client = MediaClient()
+    code = cli.main(
+        [str(doc), "--parent", "24f1b2c3d4e5f6a7b8c9d0e1f2a3b4c5", "--token", "x"],
+        client_factory=lambda token: client, out=io.StringIO(), err=io.StringIO(),
+    )
+    assert code == 0
+    sent = [b for _, blocks in client.appends for b in blocks]
+    images = [b for b in sent if b["type"] == "image"]
+    assert images, "the image block must reach Notion"
+    assert images[0]["image"]["type"] == "file_upload", (
+        "the uploaded block still points at a local path: media was discovered "
+        "before normalize() rebuilt the blocks"
+    )
+
+
 def test_main_maps_an_error_to_its_exit_code(tmp_path):
     doc = tmp_path / "doc.json"
     doc.write_text("{not json")
@@ -2511,13 +2552,21 @@ def main(argv=None, *, client_factory=None, out=None, err=None):
         factory = client_factory or (lambda t: NotionClient(t))
         client = factory(token)
 
-        refs = media.discover(blocks)
-        resolved = media.resolve(refs, base_dir)
+        # Parent first: it is one cheap request, and discovering the parent is
+        # unreachable after uploading 40 MB of images would be infuriating.
+        parent = client.retrieve_parent(normalize_parent_id(args.parent))
 
+        # Normalize BEFORE discovering media. normalize() rebuilds every block
+        # it touches, so MediaRefs taken beforehand would point at payload
+        # dicts that are no longer in the tree, and media.rewrite() would
+        # mutate orphans while the real blocks kept their local paths.
         blocks, warnings = limits.normalize(blocks, limits.DEFAULT)
         for warning in warnings:
             if not args.quiet:
                 print(f"warning: {warning}", file=err)
+
+        refs = media.discover(blocks)
+        resolved = media.resolve(refs, base_dir)
 
         if args.dry_run:
             plan = planner.plan(blocks, limits.DEFAULT)
@@ -2542,7 +2591,6 @@ def main(argv=None, *, client_factory=None, out=None, err=None):
         ids = media.upload_all(resolved, client)
         media.rewrite(resolved, ids)
 
-        parent = client.retrieve_parent(normalize_parent_id(args.parent))
         url = upload(
             blocks, client=client, parent=parent, title=title,
             base_dir=base_dir, lim=limits.DEFAULT, out=out, err=err,
@@ -2713,7 +2761,9 @@ def test_every_corpus_document_round_trips(path):
 def test_every_corpus_document_plans_within_cramped_limits(path):
     """The corpus at default limits rarely needs more than one request.
     Shrinking the bounds makes these small documents exercise the recursion."""
-    lim = limits.Limits(children=2, elements=6, byte_budget=1500, nesting=2)
+    # Only the count bounds are cramped. Shrinking byte_budget too would make
+    # a single ordinary corpus block unsendable, which tests nothing useful.
+    lim = limits.Limits(children=2, elements=6)
     blocks = document.parse(path.read_bytes())
     normalized, _ = limits.normalize(blocks, lim)
     plan = planner.plan(normalized, lim)

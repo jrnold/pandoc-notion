@@ -196,15 +196,28 @@ by a wide margin.
    ┌────┴──────────────────────────────────────────────┐
    │  PRE-FLIGHT — nothing exists in Notion yet         │
    │   1. document.parse    validate the envelope       │
-   │   2. media.resolve     local refs → real files     │
-   │   3. media.upload      dedupe by hash → file_upload│
-   │   4. limits.normalize  merge runs, split overflow  │
-   │   5. planner.plan      tree → ordered request waves│
+   │   2. retrieve_parent   is the target reachable?    │
+   │   3. limits.normalize  merge runs, split overflow  │
+   │   4. media.resolve     local refs → real files     │
+   │   5. media.upload      dedupe by hash → file_upload│
+   │   6. planner.plan      tree → ordered request waves│
    └────┬──────────────────────────────────────────────┘
         │            ── point of no return ──
-   6. POST /v1/pages  (carrying the first wave)
-   7. PATCH /v1/blocks/{id}/children, wave by wave
+   7. POST /v1/pages  (empty; see §5.4)
+   8. PATCH /v1/blocks/{id}/children, wave by wave
 ```
+
+Two orderings inside pre-flight are load-bearing rather than arbitrary:
+
+**Normalization precedes media discovery.** `normalize` rebuilds every block
+it touches, so references to file objects captured beforehand would point at
+payload dictionaries no longer in the tree. Rewriting them would mutate
+orphans while the blocks actually uploaded kept their local paths — a bug that
+produces a page full of broken images and no error at all.
+
+**The parent is checked first.** It costs one cheap request, and discovering
+that the target is unreachable *after* uploading forty megabytes of images
+would be an unforced insult.
 
 ### 3.1 Module layout
 
