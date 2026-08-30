@@ -47,9 +47,20 @@ end
 -- emitted under --verbose, so log assertions shell out via temp files.
 function M.from_markdown_verbose(text)
   local tmp_in, tmp_err = os.tmpname(), os.tmpname()
-  local fh = assert(io.open(tmp_in, "wb"))
-  fh:write(text)
-  fh:close()
+
+  -- os.tmpname() has already created both files, so a failure writing the
+  -- input must still remove them. Matches tests/support/nfm.lua, which wraps
+  -- the same step for the same reason.
+  local wrote, werr = pcall(function()
+    local fh = assert(io.open(tmp_in, "wb"))
+    fh:write(text)
+    fh:close()
+  end)
+  if not wrote then
+    os.remove(tmp_in)
+    os.remove(tmp_err)
+    error(werr)
+  end
 
   local cmd = string.format("pandoc --verbose -f markdown -t %q %q 2>%q",
                             M.WRITER, tmp_in, tmp_err)
