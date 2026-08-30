@@ -3773,7 +3773,6 @@ local checked = 0
 for _, subdir in ipairs({ "blocks", "inlines", "properties",
                           "unhydrated", "adversarial" }) do
   for _, path in ipairs(bj.list(subdir)) do
-    checked = checked + 1
     local name   = path:match("([^/\\]+)%.json$")
     local golden = bj.ROOT .. "/tests/golden/json/" .. subdir .. "/" .. name .. ".native"
     local fh = io.open(golden, "rb")
@@ -3782,6 +3781,7 @@ for _, subdir in ipairs({ "blocks", "inlines", "properties",
     if fh then
       local expected = fh:read("a")
       fh:close()
+      checked = checked + 1
       t.eq(bj.to_native(bj.read_file(path)), expected,
            subdir .. "/" .. name .. " matches its golden")
     end
@@ -3870,6 +3870,17 @@ local pinned = {}
 for _, ntype in ipairs(DOCUMENTED_TYPES) do pinned[ntype] = true end
 for ntype in pairs(schema.NOTION_INDEX) do
   t.truthy(pinned[ntype], ntype .. " is in NOTION_INDEX and must be in the pinned list")
+end
+
+-- Third direction, and it is not redundant: reader.lua dispatches M.CUSTOM
+-- BEFORE consulting NOTION_INDEX, so a type registered only via
+-- reader.CUSTOM -- with no NOTION_INDEX entry and absent from the pinned list
+-- -- would be invisible to both loops above. That is precisely the silent miss
+-- this axis exists to prevent, so close it explicitly rather than relying on
+-- every CUSTOM key happening to carry a NOTION_INDEX placeholder.
+for ntype in pairs(reader.CUSTOM) do
+  t.truthy(pinned[ntype],
+           ntype .. " is registered in reader.CUSTOM and must be in the pinned list")
 end
 ```
 
