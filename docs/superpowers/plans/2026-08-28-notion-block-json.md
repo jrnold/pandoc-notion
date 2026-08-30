@@ -3144,7 +3144,11 @@ require("notion.block.richtext").reset_notes()
 local noted = writer.convert({
   pandoc.Para({ pandoc.Str("text"),
                 pandoc.Note({ pandoc.Para({ pandoc.Str("aside") }) }) }) })
-t.eq(noted[1].paragraph.rich_text[2].text.content, "[1]", "the marker is inline")
+-- The marker merges into the preceding run, because it IS text and adjacent
+-- runs with identical annotations coalesce (design doc 4.4). Emitting it as a
+-- separate run would only be re-merged on the next read.
+t.eq(noted[1].paragraph.rich_text[1].text.content, "text[1]",
+     "the marker merges into the preceding run")
 t.truthy(#noted > 1, "the note body is appended as an endnote block")
 
 -- Quoted and Cite pass their content through rather than vanishing.
