@@ -26,7 +26,14 @@ class FakeNotion:
 
     # -- validation ---------------------------------------------------------
 
-    def _depth(self, blocks, level=1):
+    def _depth(self, blocks, level=0):
+        """Levels of `children` BELOW the request's top level: a flat array is
+        0, a block carrying children is 1, a grandchild is 2.
+
+        Same convention as Limits.nesting. Counting the top level itself would
+        make `column_list > column > content` - which Notion accepts, and in
+        fact requires - look like a violation.
+        """
         deepest = level
         for block in blocks:
             kids = document.children_of(block)
@@ -48,15 +55,30 @@ class FakeNotion:
         for block in blocks:
             self._check_arrays(document.children_of(block), depth + 1)
 
+    def _check_columns(self, children):
+        """`column_list` and `column` are created with their children or not
+        at all: Notion has no way to add a column to a column_list afterwards,
+        and refuses either one empty. A fake that let those through would
+        accept the childless `column_list` a strip-and-defer planner emits.
+        """
+        for block in children:
+            if document.block_type(block) == "column":
+                self._reject("a column may only be created inside its column_list")
+        for block in document.walk(children):
+            kind = document.block_type(block)
+            if kind in ("column_list", "column") and not document.children_of(block):
+                self._reject(f"{kind} created with no children")
+
     def _validate(self, children):
         self._check_arrays(children)
+        self._check_columns(children)
         total = document.count(children)
         if total > self.lim.elements:
             self._reject(f"{total} elements exceeds {self.lim.elements}")
         size = serialized_size(children)
         if size > self.lim.byte_budget:
             self._reject(f"{size} bytes exceeds {self.lim.byte_budget}")
-        depth = self._depth(children) if children else 0
+        depth = self._depth(children)
         if depth > self.lim.nesting:
             self._reject(f"nesting depth {depth} exceeds {self.lim.nesting}")
         for block in document.walk(children):

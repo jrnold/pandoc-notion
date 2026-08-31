@@ -24,7 +24,11 @@ class Limits:
     children: int = 100          # top-level entries in a children array
     elements: int = 1000         # total blocks, counting inlined children
     byte_budget: int = 500_000   # serialized payload
-    nesting: int = 2             # levels of nesting
+    # Levels of `children` BELOW a request's top level. 2 means a top-level
+    # block may carry children and grandchildren in the same request, which is
+    # what makes `column_list > column > content` sendable at all. The planner
+    # reads this to decide how far to inline; see planner._prepare.
+    nesting: int = 2
 
     # Per block.
     rich_text: int = 100         # elements in one rich_text array

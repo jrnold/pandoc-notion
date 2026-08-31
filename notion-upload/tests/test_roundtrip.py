@@ -29,9 +29,17 @@ def test_the_fake_rejects_an_oversized_nested_children_array():
     assert "depth 2" in str(exc.value)
 
 
+def test_the_fake_accepts_two_levels_of_nesting():
+    # Notion's bound counts levels BELOW the request's top level, so a block
+    # with children and grandchildren is legal - which is the only reason a
+    # column_list (column_list > column > content) can be created at all.
+    fake = fake_notion.FakeNotion(limits.DEFAULT)
+    fake.create_page([para("a", children=[para("b", children=[para("c")])])])
+
+
 def test_the_fake_rejects_excessive_nesting():
     fake = fake_notion.FakeNotion(limits.DEFAULT)
-    deep = para("a", children=[para("b", children=[para("c")])])
+    deep = para("a", children=[para("b", children=[para("c", children=[para("d")])])])
     with pytest.raises(fake_notion.Rejected):
         fake.create_page([deep])
 

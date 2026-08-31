@@ -165,7 +165,9 @@ def test_an_empty_body_creates_the_page_and_appends_nothing():
 
 def test_upload_recurses_for_deep_documents_resolving_ids_from_results():
     client = StubClient()
-    tree = [para("a", children=[para("b", children=[para("c")])])]
+    # Four levels: one past what a single request can carry, so `b` and its
+    # subtree become a second wave addressed by the id `a` came back with.
+    tree = [para("a", children=[para("b", children=[para("c", children=[para("d")])])])]
     cli.upload(tree, client=client, parent={"page_id": "p"}, title="T",
                base_dir=None, lim=limits.DEFAULT, out=io.StringIO(),
                err=io.StringIO())

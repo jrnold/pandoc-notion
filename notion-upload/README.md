@@ -64,9 +64,12 @@ notion-upload doc.json --parent <id> --dry-run
 ## Design
 
 `docs/superpowers/specs/2026-08-30-notion-upload-cli-design.md`. The two ideas
-worth knowing: a block inlines its children only when it has no grandchildren,
-which means every block id the recursion needs arrives in a response it
-already reads; and splitting respects bytes as well as characters, because
+worth knowing: a block inlines a leading run of its children up to the two
+levels of nesting one request allows, taking a child that has children of its
+own only when that child's entire subtree comes with it - which means every
+block id the recursion needs arrives in a response it already reads, and a
+`column_list` still reaches Notion with its columns, as Notion demands; and
+splitting respects bytes as well as characters, because
 Notion caps content in characters but caps requests in bytes.
 
 ## Tests
