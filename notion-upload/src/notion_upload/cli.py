@@ -69,12 +69,20 @@ def _plain_text(block) -> str:
 def extract_title(blocks, explicit):
     if explicit:
         return explicit, blocks
-    if blocks and document.block_type(blocks[0]) == "heading_1":
+    if (
+        blocks
+        and document.block_type(blocks[0]) == "heading_1"
+        and not document.children_of(blocks[0])
+    ):
         # Notion renders the page title as the page's own H1, so leaving this
         # heading in the body would show it twice.
         return _plain_text(blocks[0]), blocks[1:]
+    # A leading heading_1 WITH children is a toggle heading: the writer nests
+    # the whole section body inside it, so promoting it would discard every
+    # block in that section. Fall through and make the user name the title.
     raise InputError(
-        "no title: pass --title, or start the document with a heading_1"
+        "no title: pass --title, or start the document with a heading_1 that "
+        "has no children"
     )
 
 

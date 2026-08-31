@@ -1,9 +1,12 @@
 import io
 import json
+from pathlib import Path
 
 import pytest
 
-from notion_upload import cli, errors, limits
+from notion_upload import cli, document, errors, limits
+
+FIXTURES = Path(__file__).parent / "fixtures"
 
 
 def para(text, children=None):
@@ -67,6 +70,23 @@ def test_no_title_and_no_leading_heading_is_a_preflight_error():
     with pytest.raises(errors.InputError) as exc:
         cli.extract_title([para("body")], None)
     assert "--title" in str(exc.value)
+
+
+def test_a_leading_toggle_heading_is_not_promoted_and_keeps_its_children():
+    """fixtures/toggle-heading.json is a `heading_1` with `is_toggleable` and
+    the whole section body nested in its `children`. Promoting it to the page
+    title would take those children with it, uploading an empty page and
+    exiting 0."""
+    blocks = document.parse((FIXTURES / "toggle-heading.json").read_bytes())
+    assert document.count(blocks) == 2, "fixture: the heading plus its child"
+
+    with pytest.raises(errors.InputError) as exc:
+        cli.extract_title(blocks, None)
+    assert "--title" in str(exc.value)
+
+    title, body = cli.extract_title(blocks, "Explicit")
+    assert title == "Explicit"
+    assert document.count(body) == 2, "no block may be silently discarded"
 
 
 # -- parent id --------------------------------------------------------------
