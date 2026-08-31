@@ -1,0 +1,1 @@
+[{"code":{"caption":[],"language":"python","rich_text":[{"annotations":{"bold":false,"code":false,"color":"default","italic":false,"strikethrough":false,"underline":false},"plain_text":"def greet(name):\n    return f\"Hello, {name}!\"","text":{"content":"def greet(name):\n    return f\"Hello, {name}!\""},"type":"text"}]},"object":"block","type":"code"}]

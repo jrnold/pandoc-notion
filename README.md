@@ -105,7 +105,7 @@ git-ignored:
 
 ```bash
 make deps        # install the tooling
-make check       # test + lint + typecheck
+make check       # test + lint + typecheck + test-py + lint-py
 ```
 
 Individually:
@@ -115,6 +115,7 @@ Individually:
 | `make test` | pandoc | already required |
 | `make lint` | [luacheck](https://luacheck.readthedocs.io/) | `brew install luacheck` |
 | `make typecheck` | [lua-language-server](https://luals.github.io) | `brew install lua-language-server` |
+| `make test-py` / `make lint-py` | pytest / [ruff](https://docs.astral.sh/ruff/) | `cd notion-upload && uv sync` |
 
 `make deps` fetches LuaCATS type annotations for pandoc's Lua API. They come
 from a fork of [lua-craters/pandoc-annotations](https://github.com/lua-craters/pandoc-annotations),
@@ -210,5 +211,21 @@ This is the mirror of the better-known asymmetry in the other direction, where
 the API's block-type set is larger than NFM's. Inventing fields for these would
 emit JSON the API rejects. Each case is enumerated with its reason in
 `tests/crosspair_test.lua`; everything else round-trips unchanged.
+
+## Uploading to Notion
+
+The readers and writers deliberately stop at the JSON. `notion-upload/` is a
+separate Python package that takes block JSON and creates a Notion page from
+it, handling the two things the writer refuses to: uploading local media, and
+splitting a document across requests to respect the API's limits on nesting,
+block count and payload size.
+
+```bash
+pandoc --extract-media=media -f docx -t notion-block-writer.lua report.docx \
+  | notion-upload --parent <page-id>
+```
+
+It depends on nothing from the Lua tree, and the Lua tree depends on nothing
+from it; they meet at the JSON. See `notion-upload/README.md`.
 
 [nfm]: https://developers.notion.com/guides/data-apis/enhanced-markdown

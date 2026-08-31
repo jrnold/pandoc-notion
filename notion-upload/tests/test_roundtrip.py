@@ -1,8 +1,8 @@
+import fake_notion
 import pytest
+import strategies
 from hypothesis import HealthCheck, given, settings
 
-import fake_notion
-import strategies
 from notion_upload import document, limits, planner
 
 

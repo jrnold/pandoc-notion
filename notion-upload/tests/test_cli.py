@@ -3,7 +3,7 @@ import json
 
 import pytest
 
-from notion_upload import cli, errors, limits, planner
+from notion_upload import cli, errors, limits
 
 
 def para(text, children=None):
@@ -98,11 +98,11 @@ def test_normalize_parent_rejects_nonsense():
     ("https://www.notion.so/t/My-Page-24f1b2c3d4e5f6a7b8c9d0e1f2a3b4c5",
      "24f1b2c3-d4e5-f6a7-b8c9-d0e1f2a3b4c5"),
     # The view id sits after the object id in the string; the path wins.
-    ("https://www.notion.so/w/My-DB-24f1b2c3d4e5f6a7b8c9d0e1f2a3b4c5"
-     "?v=99998888777766665555444433332222",
+    (("https://www.notion.so/w/My-DB-24f1b2c3d4e5f6a7b8c9d0e1f2a3b4c5"
+      "?v=99998888777766665555444433332222"),
      "24f1b2c3-d4e5-f6a7-b8c9-d0e1f2a3b4c5"),
-    ("https://www.notion.so/w/P-24f1b2c3d4e5f6a7b8c9d0e1f2a3b4c5"
-     "#99998888777766665555444433332222",
+    (("https://www.notion.so/w/P-24f1b2c3d4e5f6a7b8c9d0e1f2a3b4c5"
+      "#99998888777766665555444433332222"),
      "24f1b2c3-d4e5-f6a7-b8c9-d0e1f2a3b4c5"),
 ])
 def test_normalize_parent_reads_the_id_from_the_path_not_the_query(url, expected):

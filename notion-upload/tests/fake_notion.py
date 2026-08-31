@@ -20,7 +20,7 @@ class FakeNotion:
         self.fail_at = fail_at            # request ordinal that raises, for retry tests
         self.calls = 0
         self.rejections: list[str] = []
-        self._ids = ("blk-%d" % n for n in itertools.count())
+        self._ids = (f"blk-{n}" for n in itertools.count())
         self._children: dict[str, list[str]] = {"page": []}
         self._blocks: dict[str, dict] = {}
 

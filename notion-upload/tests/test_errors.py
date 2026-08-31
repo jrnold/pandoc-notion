@@ -1,3 +1,5 @@
+import dataclasses
+
 import pytest
 
 from notion_upload import errors, limits
@@ -44,5 +46,5 @@ def test_limits_carry_the_documented_values():
 
 
 def test_limits_are_frozen_so_nothing_mutates_them_at_a_distance():
-    with pytest.raises(Exception):
+    with pytest.raises(dataclasses.FrozenInstanceError):
         limits.DEFAULT.children = 5
