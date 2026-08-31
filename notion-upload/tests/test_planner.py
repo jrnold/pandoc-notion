@@ -122,6 +122,45 @@ def test_a_column_list_too_deep_to_send_whole_is_a_preflight_error():
     assert "block 0" in str(exc.value)
 
 
+def test_a_childless_column_list_is_a_preflight_error():
+    """Regression: the guard used to return early on len(taken) == len(kids),
+    which is 0 == 0 for a childless block, so this branch was dead code and a
+    childless column_list planned cleanly - then Notion 400s after the page
+    exists, the exact failure the guard was added to prevent."""
+    tree = [{"object": "block", "type": "column_list", "column_list": {}}]
+    with pytest.raises(errors.LimitError) as exc:
+        planner.plan(tree, limits.DEFAULT)
+    assert "column_list" in str(exc.value)
+    assert "no children" in str(exc.value)
+
+
+def test_a_column_list_holding_an_empty_column_is_a_preflight_error():
+    """An inlined child never passes through _prepare itself, so an empty
+    `column` inside an otherwise valid column_list was never checked."""
+    tree = [column_list(
+        {"object": "block", "type": "column", "column": {}},
+        column(para("right")),
+    )]
+    with pytest.raises(errors.LimitError) as exc:
+        planner.plan(tree, limits.DEFAULT)
+    assert "column" in str(exc.value)
+    assert "no children" in str(exc.value)
+
+
+def test_a_childless_column_names_its_position():
+    """The path must point at the offending column, not its parent."""
+    tree = [
+        para("filler"),
+        column_list(
+            column(para("ok")),
+            {"object": "block", "type": "column", "column": {}},
+        ),
+    ]
+    with pytest.raises(errors.LimitError) as exc:
+        planner.plan(tree, limits.DEFAULT)
+    assert "block 1.1" in str(exc.value), str(exc.value)
+
+
 def test_a_column_list_too_large_to_send_whole_is_a_preflight_error():
     tree = [column_list(column(para("left")), column(para("right")))]
     with pytest.raises(errors.LimitError) as exc:

@@ -118,17 +118,39 @@ def _prepare(block: dict, lim: Limits, path: tuple[int, ...] = ()) -> tuple[dict
     return document.with_children(block, taken), deferred, len(taken)
 
 
+def _where(path) -> str:
+    return ("block " + ".".join(str(step) for step in path)) if path else "the document root"
+
+
+def _no_children(kind: str, path) -> LimitError:
+    return LimitError(
+        f"{kind} at {_where(path)} has no children; Notion creates a {kind} "
+        f"only with its children, so there is nothing legal to send"
+    )
+
+
 def _require_children(block, kids, taken, lim, path) -> None:
     """Refuse, before anything is created, to emit a request Notion rejects."""
     kind = document.block_type(block)
-    if kind not in MANDATORY_CHILDREN or len(taken) == len(kids):
+
+    # An inlined child never passes through _prepare itself, so this is the
+    # only place an empty `column` inside a `column_list` can be caught.
+    for offset, kid in enumerate(taken):
+        kid_kind = document.block_type(kid)
+        if kid_kind in MANDATORY_CHILDREN and not document.children_of(kid):
+            raise _no_children(kid_kind, path + (offset,))
+
+    if kind not in MANDATORY_CHILDREN:
         return
-    where = ("block " + ".".join(str(step) for step in path)) if path else "the document root"
+
+    # Order matters: a childless block has len(taken) == len(kids) == 0, so
+    # checking the all-taken shortcut first would make this branch dead code.
     if not kids:
-        raise LimitError(
-            f"{kind} at {where} has no children; Notion creates a {kind} only "
-            f"with its children, so there is nothing legal to send"
-        )
+        raise _no_children(kind, path)
+    if len(taken) == len(kids):
+        return  # every child came whole; nothing to refuse
+
+    where = _where(path)
     too_deep = any(
         _subtree_depth(kid) > lim.nesting - 1 for kid in kids[len(taken):]
     )
