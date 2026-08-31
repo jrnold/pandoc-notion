@@ -97,8 +97,12 @@ class NotionClient:
             "properties": {
                 "title": {"title": [{"type": "text", "text": {"content": title}}]}
             },
-            "children": children,
         }
+        # Omitted rather than sent as []: Notion validates children as a
+        # non-empty array when the key is present, and the page is created
+        # empty on purpose (see cli.upload).
+        if children:
+            body["children"] = children
         return self._request("POST", "/v1/pages", json=body).json()
 
     def append_children(self, block_id: str, children: list[dict]) -> list[dict]:

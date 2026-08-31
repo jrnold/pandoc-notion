@@ -149,6 +149,20 @@ def test_upload_creates_the_page_empty_and_appends_every_wave():
     assert len(client.appends[0][1]) == 2
 
 
+def test_an_empty_body_creates_the_page_and_appends_nothing():
+    """The planner emits one blockless request for an empty document. Sending
+    it means `children: []`, which Notion rejects with `body.children.length
+    should be >= 1` - a created page and exit 6 for a document that simply has
+    no blocks."""
+    client = StubClient()
+    url = cli.upload(
+        [], client=client, parent={"page_id": "p"}, title="T",
+        base_dir=None, lim=limits.DEFAULT, out=io.StringIO(), err=io.StringIO(),
+    )
+    assert url == "https://notion.so/page-1"
+    assert client.appends == [], "an empty children array is never sent"
+
+
 def test_upload_recurses_for_deep_documents_resolving_ids_from_results():
     client = StubClient()
     tree = [para("a", children=[para("b", children=[para("c")])])]

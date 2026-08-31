@@ -104,6 +104,11 @@ def upload(blocks, *, client, parent, title, base_dir, lim, out, err):
     created: dict[planner.Ref, str] = {}
 
     for position, request in enumerate(plan):
+        if not request.blocks:
+            # Notion answers `body.children.length should be >= 1` to an empty
+            # children array. An empty request creates nothing and can parent
+            # nothing, so skipping it leaves every later Ref resolvable.
+            continue
         parent_id = page_id if request.parent is None else created[request.parent]
         try:
             results = client.append_children(parent_id, request.blocks)

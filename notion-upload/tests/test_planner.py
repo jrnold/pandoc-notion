@@ -143,7 +143,11 @@ def test_plan_does_not_mutate_its_input():
     assert tree == before
 
 
-def test_an_empty_document_plans_a_single_empty_request():
+def test_an_empty_document_plans_a_request_that_must_not_be_sent():
+    """The planner still emits the page-level wave for an empty document -
+    packing an empty list yields an empty request - but `children: []` is
+    rejected by Notion, so the executor drops any blockless request. See
+    test_cli.test_an_empty_body_creates_the_page_and_appends_nothing."""
     plan = planner.plan([], limits.DEFAULT)
     assert len(plan) == 1
     assert plan[0].blocks == []

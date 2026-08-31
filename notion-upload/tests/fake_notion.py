@@ -77,6 +77,9 @@ class FakeNotion:
 
     def append(self, block_id, children):
         self._tick()
+        if not children:
+            # Real Notion: "body.children.length should be >= 1".
+            self._reject("append with an empty children array")
         self._validate(children)
         return self._store(block_id, children)
 
@@ -119,6 +122,8 @@ def execute(plan, fake):
     """
     created: dict[planner.Ref, str] = {}
     for position, request in enumerate(plan):
+        if not request.blocks:
+            continue  # cli.upload skips these too; the fake rejects them
         parent_id = "page" if request.parent is None else created[request.parent]
         results = fake.append(parent_id, request.blocks)
         for index, block in enumerate(results):

@@ -49,6 +49,20 @@ def test_create_page_sends_title_as_the_only_property():
     assert title == "My Title"
 
 
+def test_create_page_omits_children_entirely_when_there_are_none():
+    """The page is created empty by design. Sending `children: []` makes
+    Notion validate a non-empty array and reject the creation outright."""
+    captured = {}
+
+    def handler(request):
+        captured.update(json.loads(request.content))
+        return httpx.Response(200, json={"id": "page-1"})
+
+    c, _ = make(handler)
+    c.create_page({"page_id": "parent"}, "T", [])
+    assert "children" not in captured
+
+
 def test_append_children_returns_the_results_array():
     def handler(request):
         return httpx.Response(200, json={"results": [{"id": "b1"}, {"id": "b2"}]})

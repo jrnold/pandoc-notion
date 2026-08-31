@@ -36,6 +36,14 @@ def test_the_fake_rejects_excessive_nesting():
         fake.create_page([deep])
 
 
+def test_the_fake_rejects_an_empty_children_array():
+    # Real Notion: "body.children.length should be >= 1". A fake that accepted
+    # it would let the executor PATCH an empty wave and call it a success.
+    fake = fake_notion.FakeNotion(limits.DEFAULT)
+    with pytest.raises(fake_notion.Rejected):
+        fake.append("page", [])
+
+
 def test_the_fake_rejects_an_inbound_id():
     fake = fake_notion.FakeNotion(limits.DEFAULT)
     block = para("a")
