@@ -231,6 +231,13 @@ def _normalize(blocks: list[dict], lim: Limits) -> tuple[list[dict], list[str]]:
             for chunk in chunks:
                 piece = dict(current)
                 piece[kind] = {**body, "rich_text": chunk}
+                if pieces:
+                    # The caption belongs to the block, not to each chunk of
+                    # its text. Copied onto every piece it renders as three
+                    # captions under what the reader sees as one figure - so
+                    # continuations carry none, the rule already used for
+                    # children below.
+                    piece[kind].pop("caption", None)
                 pieces.append(piece)
             if len(chunks) > 1:
                 warnings.append(

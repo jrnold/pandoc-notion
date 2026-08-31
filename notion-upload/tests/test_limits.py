@@ -177,6 +177,23 @@ def test_normalize_errors_on_a_caption_with_too_many_runs():
     assert "caption" in str(exc.value)
 
 
+def test_a_split_block_keeps_its_caption_on_the_first_piece_only():
+    """A caption belongs to the block, not to each chunk of its text. Copied
+    onto every piece it renders as two captions under what the reader sees as
+    one figure - the same reason children go only on the first piece."""
+    runs = [rt(f"w{i}", bold=bool(i % 2)) for i in range(150)]
+    captioned = {"object": "block", "type": "code",
+                 "code": {"rich_text": runs, "language": "python",
+                          "caption": [rt("Figure 1")]}}
+    out, _ = limits.normalize([captioned], limits.DEFAULT)
+
+    assert len(out) > 1, "the block must actually have been split"
+    assert document.payload(out[0])["caption"][0]["text"]["content"] == "Figure 1"
+    assert all("caption" not in document.payload(b) for b in out[1:]), (
+        "continuations must not repeat the caption"
+    )
+
+
 def test_every_block_normalize_returns_fits_alone_in_a_request():
     """The docstring guarantee 5.2's totality argument cites, asserted over
     every rich-text-bearing field at once.
