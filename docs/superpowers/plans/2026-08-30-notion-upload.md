@@ -997,6 +997,30 @@ def test_a_parents_request_always_precedes_the_request_it_parents():
             assert request.parent.request < position
 
 
+def test_source_path_resolves_to_the_right_block_after_partial_inlining():
+    """A deferred wave starts partway through its parent's children, so its
+    paths must carry that offset. Without it they resolve to the blocks that
+    were inlined instead."""
+    tree = [para("p", children=[para("a"), para("b"),
+                                para("c", children=[para("g")]), para("d")])]
+    plan = planner.plan(tree, limits.DEFAULT)
+
+    def resolve(path):
+        node, cursor = None, tree
+        for i in path:
+            node = cursor[i]
+            cursor = document.children_of(node)
+        return text_of(node)
+
+    for request in plan:
+        assert len(request.source_path) == len(request.blocks)
+        for block, path in zip(request.blocks, request.source_path):
+            assert resolve(path) == text_of(block), (
+                f"source_path {path} resolves to {resolve(path)!r}, "
+                f"but the request carries {text_of(block)!r}"
+            )
+
+
 def test_plan_does_not_mutate_its_input():
     tree = [para("a", children=[para("b", children=[para("c")])])]
     before = document.deep_copy(tree)
@@ -1070,7 +1094,7 @@ def _prepare(block: dict, lim: Limits) -> tuple[dict, list[dict]]:
     """
     kids = document.children_of(block)
     if not kids:
-        return document.without_children(block), []
+        return document.without_children(block), [], 0
 
     taken: list[dict] = []
     for kid in kids:
@@ -1087,18 +1111,18 @@ def _prepare(block: dict, lim: Limits) -> tuple[dict, list[dict]]:
 
     deferred = list(kids[len(taken):])
     if not taken:
-        return document.without_children(block), deferred
-    return document.with_children(block, taken), deferred
+        return document.without_children(block), deferred, 0
+    return document.with_children(block, taken), deferred, len(taken)
 
 
 def plan(blocks: list[dict], lim: Limits) -> list[Request]:
     requests: list[Request] = []
     # (parent_ref, blocks, source_path) waves still to emit.
-    waves: list[tuple] = [(None, document.deep_copy(blocks), ())]
+    waves: list[tuple] = [(None, document.deep_copy(blocks), (), 0)]
 
     while waves:
-        parent, children, path = waves.pop(0)
-        deferred = _pack(parent, children, lim, path, requests)
+        parent, children, path, base = waves.pop(0)
+        deferred = _pack(parent, children, lim, path, requests, base)
         # Depth-first: waves just queued go to the front, in order, so a
         # block's children are emitted before its parent's later siblings.
         waves[0:0] = deferred
@@ -1110,7 +1134,7 @@ def plan(blocks: list[dict], lim: Limits) -> list[Request]:
 makes that last line the only ordering decision in the file:
 
 ```python
-def _pack(parent, blocks, lim, path, requests) -> list[tuple]:
+def _pack(parent, blocks, lim, path, requests, base=0) -> list[tuple]:
     """Emit requests appending `blocks` to `parent`; return deferred waves."""
     deferred_waves: list[tuple] = []
     current: list[dict] = []
@@ -1120,13 +1144,15 @@ def _pack(parent, blocks, lim, path, requests) -> list[tuple]:
     def flush():
         index = len(requests)
         requests.append(Request(parent, list(current), list(current_paths)))
-        for position, kids, kid_path in deferrals:
-            deferred_waves.append((Ref(index, position), kids, kid_path))
+        for position, kids, kid_path, inlined in deferrals:
+            deferred_waves.append((Ref(index, position), kids, kid_path, inlined))
         deferrals.clear()
 
     for offset, block in enumerate(blocks):
-        payload, deferred = _prepare(block, lim)
-        block_path = path + (offset,)
+        payload, deferred, inlined = _prepare(block, lim)
+        # `base` is how many of this block's children were inlined upstream;
+        # without it a deferred wave's paths point at the inlined ones.
+        block_path = path + (base + offset,)
 
         over_children = len(current) >= lim.children
         over_elements = (
@@ -1142,7 +1168,7 @@ def _pack(parent, blocks, lim, path, requests) -> list[tuple]:
         current.append(payload)
         current_paths.append(block_path)
         if deferred:
-            deferrals.append((len(current) - 1, deferred, block_path))
+            deferrals.append((len(current) - 1, deferred, block_path, inlined))
 
     # Always flush, even when empty: an empty document still creates a page.
     flush()
@@ -1159,7 +1185,7 @@ def _pack(parent, blocks, lim, path, requests) -> list[tuple]:
 - [ ] **Step 4: Run test to verify it passes**
 
 Run: `cd notion-upload && uv run pytest tests/test_planner.py -v`
-Expected: PASS, 16 tests.
+Expected: PASS, 17 tests.
 
 - [ ] **Step 5: Commit**
 
