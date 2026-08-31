@@ -92,6 +92,25 @@ def test_normalize_parent_rejects_nonsense():
         cli.normalize_parent_id("not-an-id")
 
 
+@pytest.mark.parametrize("url,expected", [
+    ("24f1b2c3d4e5f6a7b8c9d0e1f2a3b4c5", "24f1b2c3-d4e5-f6a7-b8c9-d0e1f2a3b4c5"),
+    ("24f1b2c3-d4e5-f6a7-b8c9-d0e1f2a3b4c5", "24f1b2c3-d4e5-f6a7-b8c9-d0e1f2a3b4c5"),
+    ("https://www.notion.so/t/My-Page-24f1b2c3d4e5f6a7b8c9d0e1f2a3b4c5",
+     "24f1b2c3-d4e5-f6a7-b8c9-d0e1f2a3b4c5"),
+    # The view id sits after the object id in the string; the path wins.
+    ("https://www.notion.so/w/My-DB-24f1b2c3d4e5f6a7b8c9d0e1f2a3b4c5"
+     "?v=99998888777766665555444433332222",
+     "24f1b2c3-d4e5-f6a7-b8c9-d0e1f2a3b4c5"),
+    ("https://www.notion.so/w/P-24f1b2c3d4e5f6a7b8c9d0e1f2a3b4c5"
+     "#99998888777766665555444433332222",
+     "24f1b2c3-d4e5-f6a7-b8c9-d0e1f2a3b4c5"),
+])
+def test_normalize_parent_reads_the_id_from_the_path_not_the_query(url, expected):
+    """A database URL's ?v= view id sits later in the string than the
+    object id. Scanning the whole argument addresses the wrong object."""
+    assert cli.normalize_parent_id(url) == expected
+
+
 # -- upload -----------------------------------------------------------------
 
 def test_upload_creates_the_page_empty_and_appends_every_wave():
@@ -228,3 +247,29 @@ def test_missing_token_is_a_clear_error(tmp_path, monkeypatch):
     )
     assert code == errors.InputError.exit_code
     assert "NOTION_TOKEN" in err.getvalue()
+
+
+def test_a_missing_input_file_is_a_clean_error_not_a_traceback(tmp_path):
+    """A typo'd filename is the commonest user error; it must not print a
+    Python stack trace."""
+    out, err = io.StringIO(), io.StringIO()
+    code = cli.main(
+        [str(tmp_path / "nope.json"), "--parent",
+         "24f1b2c3d4e5f6a7b8c9d0e1f2a3b4c5", "--token", "x"],
+        client_factory=lambda token: StubClient(), out=out, err=err,
+    )
+    assert code == errors.InputError.exit_code
+    assert "cannot read" in err.getvalue()
+    assert out.getvalue() == ""
+
+
+def test_non_utf8_input_is_a_clean_error_not_a_traceback(tmp_path):
+    doc = tmp_path / "doc.json"
+    doc.write_bytes(b"\xff\xfe not utf-8 at all")
+    out, err = io.StringIO(), io.StringIO()
+    code = cli.main(
+        [str(doc), "--parent", "24f1b2c3d4e5f6a7b8c9d0e1f2a3b4c5", "--token", "x"],
+        client_factory=lambda token: StubClient(), out=out, err=err,
+    )
+    assert code == errors.InputError.exit_code
+    assert out.getvalue() == ""

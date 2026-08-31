@@ -26,7 +26,7 @@ ACCEPTED = (
 def parse(raw: str | bytes) -> list[dict]:
     try:
         value = json.loads(raw)
-    except json.JSONDecodeError as exc:
+    except (json.JSONDecodeError, UnicodeDecodeError) as exc:
         raise InputError(f"input is not valid JSON: {exc}") from exc
 
     blocks = _unwrap(value)
