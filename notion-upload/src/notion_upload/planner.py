@@ -123,7 +123,7 @@ def _require_children(block, kids, taken, lim, path) -> None:
     kind = document.block_type(block)
     if kind not in MANDATORY_CHILDREN or len(taken) == len(kids):
         return
-    where = "block " + ".".join(str(step) for step in path) if path else "the document root"
+    where = ("block " + ".".join(str(step) for step in path)) if path else "the document root"
     if not kids:
         raise LimitError(
             f"{kind} at {where} has no children; Notion creates a {kind} only "
