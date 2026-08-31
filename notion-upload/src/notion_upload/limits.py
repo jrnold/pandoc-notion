@@ -135,6 +135,45 @@ def _check_unsplittable(block: dict, lim: Limits, index: int) -> None:
             )
 
 
+def _check_fits_alone(block: dict, lim: Limits, kind: str, index: int) -> None:
+    """The guarantee normalize() makes, checked rather than assumed.
+
+    Splitting `rich_text` into sibling blocks brings almost everything inside
+    the budget. What it cannot reach is a block whose bulk is somewhere else -
+    a wide table_row, a block with an enormous caption - and §5.2's totality
+    argument rests on there being no such block in the planner's input. If one
+    survives, saying so here beats a 500 KB request Notion rejects after the
+    page exists.
+    """
+    size = serialized_size(block)
+    if size > lim.byte_budget:
+        raise LimitError(
+            f"{kind} at index {index} serializes to {size} bytes on its own; "
+            f"the request limit is {lim.byte_budget} and this block cannot be "
+            f"split any further without changing what it means"
+        )
+
+
+def _fit_runs(runs: list[dict], lim: Limits, kind: str, index: int, field: str) -> list[dict]:
+    """Merge and split a rich_text array that cannot become sibling blocks.
+
+    `rich_text` overflow is handled by cutting the block into consecutive
+    siblings (§7.2). A caption or a table cell has no such escape: a second
+    copy of the block would be a second image, a second row would be a
+    different table. So merge, split the text at the character bound, and if
+    the element bound is still breached say so in pre-flight.
+    """
+    runs = split_text_content(merge_runs(runs), lim.text_chars)
+    if len(runs) > lim.rich_text:
+        raise LimitError(
+            f"{kind} at index {index}: {field} still holds {len(runs)} rich_text "
+            f"elements after merging; the limit is {lim.rich_text}, and splitting "
+            f"a {kind} into siblings to carry the overflow would change what the "
+            f"document means"
+        )
+    return runs
+
+
 def normalize(blocks: list[dict], lim: Limits) -> tuple[list[dict], list[str]]:
     """Merge, split, and recurse. Returns new blocks and warnings.
 
@@ -142,8 +181,11 @@ def normalize(blocks: list[dict], lim: Limits) -> tuple[list[dict], list[str]]:
     the caller's tree - callers rewrite media file objects in the returned
     blocks, and that must never reach back into the input.
 
-    Guarantee on return: every childless block fits alone inside
-    byte_budget, which is what makes the planner's packing total.
+    Guarantee on return: every childless block in the result fits alone
+    inside byte_budget, which is what makes the planner's packing total.
+    Blocks that cannot be brought inside it - because the text that overflows
+    is a caption or a table row, neither of which can be split into siblings -
+    do not come back at all: they raise LimitError in pre-flight.
     """
     return _normalize(document.deep_copy(blocks), lim)
 
@@ -160,6 +202,22 @@ def _normalize(blocks: list[dict], lim: Limits) -> tuple[list[dict], list[str]]:
         kids = document.children_of(block)
         current = document.without_children(block)
         body = document.payload(current)
+
+        # `rich_text` is not the only rich-text-bearing field. A caption and a
+        # table_row's cells carry the same objects and are bound by the same
+        # character, element and byte limits; treating them as opaque left a
+        # 5000-character cell and a 646 KB row to be discovered by Notion.
+        caption = body.get("caption")
+        if isinstance(caption, list) and caption:
+            body["caption"] = _fit_runs(caption, lim, kind, index, "caption")
+
+        cells = body.get("cells")
+        if isinstance(cells, list):
+            body["cells"] = [
+                _fit_runs(cell, lim, kind, index, f"cell {column}")
+                if isinstance(cell, list) and cell else cell
+                for column, cell in enumerate(cells)
+            ]
 
         runs = body.get("rich_text")
         pieces = [current]
@@ -179,6 +237,9 @@ def _normalize(blocks: list[dict], lim: Limits) -> tuple[list[dict], list[str]]:
                     f"{kind} block at index {index} exceeds what one Notion block "
                     f"can hold; split into {len(chunks)} consecutive {kind} blocks"
                 )
+
+        for piece in pieces:
+            _check_fits_alone(piece, lim, kind, index)
 
         if kids:
             normalized_kids, child_warnings = _normalize(kids, lim)

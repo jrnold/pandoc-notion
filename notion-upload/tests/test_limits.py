@@ -112,6 +112,92 @@ def test_normalize_output_shares_no_mutable_state_with_its_input():
     assert runs_of(src[0])[0]["text"]["content"] == "short"
 
 
+# -- rich text outside `rich_text` -------------------------------------------
+
+def table_row(*cells):
+    return {"object": "block", "type": "table_row",
+            "table_row": {"cells": [list(cell) for cell in cells]}}
+
+
+def image(caption):
+    return {"object": "block", "type": "image",
+            "image": {"type": "external", "external": {"url": "https://e.com/a.png"},
+                      "caption": caption}}
+
+
+def cells_of(b):
+    return document.payload(b)["cells"]
+
+
+def test_normalize_splits_text_inside_a_table_cell():
+    """`table_row.cells` is a list of lists of rich_text. Reading only
+    `payload['rich_text']` left a 5000-character cell to sail past the
+    2000-character cap untouched."""
+    out, _ = limits.normalize([table_row([rt("x" * 5000)])], limits.DEFAULT)
+    lengths = [len(e["text"]["content"]) for e in cells_of(out[0])[0]]
+    assert lengths == [2000, 2000, 1000]
+
+
+def test_normalize_merges_runs_inside_a_table_cell():
+    out, _ = limits.normalize([table_row([rt("Hello"), rt(" "), rt("world")])],
+                              limits.DEFAULT)
+    cell = cells_of(out[0])[0]
+    assert len(cell) == 1
+    assert cell[0]["text"]["content"] == "Hello world"
+
+
+def test_normalize_errors_on_a_table_row_too_wide_for_one_request():
+    """A row cannot become two rows without changing the table, so a row that
+    still exceeds the byte budget is a pre-flight error. Without this,
+    normalize returned a 600 KB block and claimed every childless block fit."""
+    wide = table_row(*([rt("y" * 1900)] for _ in range(400)))
+    assert limits.serialized_size(wide) > limits.DEFAULT.byte_budget
+    with pytest.raises(errors.LimitError) as exc:
+        limits.normalize([wide], limits.DEFAULT)
+    assert "table_row" in str(exc.value)
+
+
+def test_normalize_errors_on_a_table_cell_with_too_many_runs():
+    unmergeable = [rt(f"w{i}", bold=bool(i % 2)) for i in range(150)]
+    with pytest.raises(errors.LimitError) as exc:
+        limits.normalize([table_row(unmergeable)], limits.DEFAULT)
+    assert "cell 0" in str(exc.value)
+
+
+def test_normalize_splits_text_inside_a_caption():
+    out, _ = limits.normalize([image([rt("z" * 5000)])], limits.DEFAULT)
+    caption = document.payload(out[0])["caption"]
+    assert [len(e["text"]["content"]) for e in caption] == [2000, 2000, 1000]
+
+
+def test_normalize_errors_on_a_caption_with_too_many_runs():
+    unmergeable = [rt(f"w{i}", bold=bool(i % 2)) for i in range(150)]
+    with pytest.raises(errors.LimitError) as exc:
+        limits.normalize([image(unmergeable)], limits.DEFAULT)
+    assert "caption" in str(exc.value)
+
+
+def test_every_block_normalize_returns_fits_alone_in_a_request():
+    """The docstring guarantee 5.2's totality argument cites, asserted over
+    every rich-text-bearing field at once.
+
+    The row is pandoc-shaped: fragmented at word boundaries, so it costs
+    630 KB as it arrives and 270 KB once its cells are merged. Leaving cells
+    alone left the planner an unsendable block and a guarantee that was false.
+    """
+    fragmented = table_row(*([rt("x" * 100) for _ in range(500)] for _ in range(5)))
+    assert limits.serialized_size(fragmented) > limits.DEFAULT.byte_budget
+    blocks = [
+        fragmented,
+        image([rt("z" * 9000)]),
+        block("paragraph", [rt("漢" * 2000, bold=bool(i % 2)) for i in range(100)]),
+    ]
+    out, _ = limits.normalize(blocks, limits.DEFAULT)
+    assert len(out) > len(blocks), "the paragraph must have been split"
+    for b in out:
+        assert limits.serialized_size(b) <= limits.DEFAULT.byte_budget
+
+
 def test_normalize_errors_on_an_over_long_url():
     b = {"object": "block", "type": "image",
          "image": {"type": "external", "external": {"url": "https://e.com/" + "a" * 2100}}}
