@@ -356,12 +356,20 @@ complete*, which a reader can use. Breadth-first would leave the whole
 document present but stripped of its nested detail, which is worse to
 discover and harder to repair by hand.
 
-### 5.4 The first wave rides along
+### 5.4 The page is created empty
 
-`POST /v1/pages` accepts up to 100 children (§2.3), so the first wave is
-carried by the creation request rather than following it. This saves a
-request and, more importantly, shrinks the window in which a partial page can
-exist: page creation and the first batch now succeed or fail together.
+`POST /v1/pages` accepts up to 100 children, and an earlier draft of this
+design had the first wave ride along with creation to save a request.
+
+That is wrong. The creation response returns the page object, not its
+children, so blocks created that way have no reachable ids — and any block
+among them with children of its own could never be appended to. A document
+more than two levels deep would be unfinishable.
+
+The page is therefore created empty and every wave, including the first, goes
+through `PATCH /v1/blocks/:id/children`. One extra request buys a single code
+path in which every id the recursion needs arrives in a `results` array, which
+is the same property §5.1 exists to guarantee.
 
 ## 6. Media
 
