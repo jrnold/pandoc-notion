@@ -27,9 +27,17 @@ class LimitError(NotionUploadError):
 
 
 class APIError(NotionUploadError):
-    """Notion rejected a request, or was unreachable."""
+    """Notion rejected a request, or was unreachable.
+
+    `status` is the HTTP status when there was a response, and None
+    when the request never completed (a transport error).
+    """
 
     exit_code = 5
+
+    def __init__(self, message, *, status=None):
+        super().__init__(message)
+        self.status = status
 
 
 class PartialUploadError(NotionUploadError):

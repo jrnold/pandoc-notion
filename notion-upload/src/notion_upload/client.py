@@ -53,11 +53,20 @@ class NotionClient:
     def _request(self, method, url, **kwargs) -> httpx.Response:
         for attempt in range(self._max_retries + 1):
             self._throttle()
-            response = self._http.request(method, url, **kwargs)
+            try:
+                response = self._http.request(method, url, **kwargs)
+            except httpx.RequestError as exc:
+                # Never reached the server: retryable, and it must not
+                # escape as a bare httpx exception - cli.main only handles
+                # NotionUploadError.
+                if attempt == self._max_retries:
+                    raise APIError(f"could not reach Notion: {exc}") from exc
+                self._sleep(min(2**attempt, 30) + random.random())
+                continue
             if response.status_code < 400:
                 return response
             if response.status_code not in RETRYABLE_STATUS or attempt == self._max_retries:
-                raise APIError(self._describe(response))
+                raise APIError(self._describe(response), status=response.status_code)
             self._sleep(self._retry_delay(response, attempt))
         raise AssertionError("unreachable")
 
@@ -113,8 +122,10 @@ class NotionClient:
         for path, key in probes:
             try:
                 self._request("GET", path)
-            except APIError:
-                continue
+            except APIError as exc:
+                if exc.status == 404:
+                    continue      # genuinely not this kind of object; try the next
+                raise             # 401, 403, 400, transport failure: a real error
             return {key: object_id}
         raise APIError(
             f"parent {object_id} is not a page, data source or database "

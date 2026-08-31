@@ -135,6 +135,35 @@ def test_retrieve_parent_raises_when_nothing_matches():
     assert "abc" in str(exc.value)
 
 
+def test_a_bad_token_is_not_disguised_as_an_unshared_parent():
+    """A 401 must surface as itself. Reporting it as 'not shared with your
+    integration' sends the user to fix the wrong thing."""
+    def handler(request):
+        return httpx.Response(401, json={"code": "unauthorized",
+                                         "message": "API token is invalid."})
+
+    c, _ = make(handler)
+    with pytest.raises(errors.APIError) as exc:
+        c.retrieve_parent("24f1b2c3-d4e5-f6a7-b8c9-d0e1f2a3b4c5")
+    assert "API token is invalid." in str(exc.value)
+    assert "shared with your integration" not in str(exc.value)
+    assert exc.value.status == 401
+
+
+def test_a_transport_failure_becomes_an_api_error_not_a_raw_httpx_error():
+    """cli.main handles NotionUploadError only, so a dropped connection
+    must not escape as httpx.ConnectError."""
+    def handler(request):
+        raise httpx.ConnectError("connection refused", request=request)
+
+    c, slept = make(handler, max_retries=2)
+    with pytest.raises(errors.APIError) as exc:
+        c.append_children("blk", [])
+    assert "could not reach Notion" in str(exc.value)
+    assert exc.value.status is None
+    assert len(slept) >= 2, "a transport error is retryable"
+
+
 def test_file_upload_send_posts_multipart_with_a_file_field():
     captured = {}
 
