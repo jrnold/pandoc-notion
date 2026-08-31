@@ -272,35 +272,48 @@ deferred to it.
 
 ### 5.1 The inlining rule
 
-> A block carries inline the **longest leading run** of its children that are
-> leaves and that fit within the per-request bounds. Everything from the first
-> child with children of its own, or the first child that would breach a
-> bound, is deferred to a wave keyed to the id the response hands back.
+> A block carries inline the **longest leading run** of its children that fit
+> within the per-request bounds, up to `Limits.nesting` levels deep. A leaf
+> child may be taken on its own; a child that has children of its own comes
+> only if its **entire subtree** comes with it. Everything from the first
+> child that cannot be taken whole is deferred to a wave keyed to the id the
+> response hands back.
 
-The leaf condition follows from §2.7. Because a response identifies only
-top-level blocks, any block whose id we will later need to append to must
-itself appear at the top level of some request. A child with children is a
-child we will need an id for; therefore it cannot be inlined.
+**Why two levels.** §2.7 says a response identifies only top-level blocks, so
+any block whose id we will later need must appear top-level in some request.
+An earlier draft concluded from this that only leaf children may be inlined —
+one level. That was too strong, and it made one construct impossible to
+express: a `column_list` must be created with at least two `column` children,
+each with at least one child of its own, so a one-level rule always emitted an
+empty `column_list` that Notion rejects. Notion's "two levels of nesting per
+request" means two levels *below* the request's own array, which is exactly
+what the documented column example requires.
 
-**A leading run, not an arbitrary subset.** Deferred children are *appended*
-to the parent, so they land after whatever was already inlined. Taking a
-prefix is therefore exactly what preserves document order — and it comes free,
-with no use of the `position` parameter.
+**All-or-nothing below the first level.** A prefix is fine for leaf children,
+but never for a non-leaf child's own children. Inlining a *prefix* of
+grandchildren would require that child's id to append the remainder — and that
+child is not top-level in any request, so no id ever arrives for it. That is
+precisely the guarantee this rule exists to protect:
 
 The payoff is that **no `GET` is ever required**. Every id the recursion needs
 arrives in a `results` array it already had to read.
 
-**The bound that is easy to miss.** The 100-children cap applies to *every*
-`children` array, not only the array at the top level of a request. An
-all-or-nothing rule — inline every child or none — emits a block with 120
-inlined children whenever no child has children of its own: one legal-looking
-request, rejected by the API. The run is therefore capped at 100 as well as by
-elements and bytes.
+**A leading run, not an arbitrary subset.** Deferred children are *appended*
+to the parent, so they land after whatever was already inlined. Taking a
+prefix is exactly what preserves document order, and it comes free, with no
+use of the `position` parameter.
 
-This was found by construction, not in production: an earlier draft of this
-section used the all-or-nothing rule, and it survived review because the test
-fake validated only the request's own children array. The fake now validates
-every array at every depth (§9.1).
+**The bound that is easy to miss.** The 100-children cap applies to *every*
+`children` array, not only the array at the top level of a request — an
+inlined grandchild array is bound by it too. An all-or-nothing-at-every-level
+rule emits a block with 120 inlined children whenever no child has children of
+its own: one legal-looking request, rejected by the API.
+
+**Types whose children are mandatory.** The packer's universal escape hatch is
+"send the block childless and defer its children". `column_list` and `column`
+forbid exactly that. For those types the planner does not strip: a block that
+cannot be sent whole raises `LimitError` in pre-flight, naming the block,
+rather than producing a request the API rejects after the page exists.
 
 Worked on `A` with 120 leaf children:
 
@@ -309,18 +322,15 @@ PATCH page/children      [A + 100 inlined leaves]
 PATCH A/children         [the remaining 20]        2 requests, both legal
 ```
 
-Worked on `A > B₁..B₅₀`, each `Bᵢ` holding one leaf `Cᵢ`:
+Worked on a `column_list` with two columns of one paragraph each: **one
+request**, carrying all five blocks.
 
-```
-POST  /v1/pages          children: [A]                (A has grandchildren)
-PATCH A/children         [B₁+C₁, …, B₅₀+C₅₀]          (each Bᵢ inlines its leaf)
-                                                       2 requests
-```
-
-Stripping children unconditionally and recursing costs 52 requests for the
-same tree. On a 4-level spine the rule ties the alternative design that inlines
-two levels and pays for a `GET` to recover the ids — three requests either
-way — so there is no shape on which the `GET` version wins.
+**How both halves of this rule were found.** The all-or-nothing-inlining draft
+was caught during design, because the test fake validated only the request's
+own children array. The one-level draft survived nine task reviews and was
+caught by the final whole-branch review, because the fake enforced generic
+limits but no per-block-type structural rules — the same class of gap as the
+first, one level up. §9.1 now covers both.
 
 ### 5.2 Packing
 
@@ -335,12 +345,20 @@ are packed greedily into requests bounded simultaneously by:
 A block whose inlined children push it past a limit even in an otherwise
 empty request is **stripped and deferred**: it is sent childless, and its
 children become a wave of their own. This is the same transformation §5.1
-applies for depth, applied here for size, and it is always available because
-§7.2 guarantees that a *childless* block always fits alone.
+applies for depth, applied here for size, and it is available because §7.2
+guarantees that a *childless* block always fits alone.
 
-Together those two facts make the packer total: every block is sendable,
-either with its children or without them, and the recursion terminates because
-each deferral strictly reduces the depth of what remains.
+Together those facts make the packer total: every block is sendable, either
+with its children or without them, and the recursion terminates because each
+deferral strictly reduces the depth of what remains.
+
+**With one exception, which is why §5.1 names a mandatory-children set.**
+`column_list` and `column` may not be sent childless, so the escape hatch is
+closed for them. When one of those cannot be sent whole there is no legal
+request to fall back to, and the planner raises `LimitError` in pre-flight
+instead. That keeps the packer total in the sense that matters — it never
+emits a request the API will reject — at the cost of refusing a document
+Notion itself could not represent.
 
 ### 5.3 Ordering
 
@@ -506,7 +524,16 @@ inbound block.
 The "any depth" part is load-bearing rather than thorough-for-its-own-sake. An
 earlier fake checked only the request's own children array, and that gap let
 the all-or-nothing inlining rule described in §5.1 pass review while emitting
-payloads the API would have rejected. It assigns fresh uuids and returns
+payloads the API would have rejected.
+
+**A generic fake is not enough on its own.** The same fake, correct about
+counts, bytes, depth and inbound ids, still passed a `column_list` created with
+zero columns through nine task reviews, because it enforced no *per-block-type*
+structural rules. Notion's schema is not only a set of size limits. The fake
+therefore also rejects a childless `column_list` or `column`, a top-level
+`column`, and an empty children array — and any future constraint of that shape
+belongs here too, not only in the planner. A limit the fake does not know is a
+limit the suite cannot hold the planner to. It assigns fresh uuids and returns
 `results` in creation order. It can be instructed to answer `429` with a
 `Retry-After`, which is the only honest way to exercise the backoff path.
 
