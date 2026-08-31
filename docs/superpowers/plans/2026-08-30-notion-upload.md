@@ -444,7 +444,9 @@ ACCEPTED = (
 def parse(raw: str | bytes) -> list[dict]:
     try:
         value = json.loads(raw)
-    except json.JSONDecodeError as exc:
+    except (json.JSONDecodeError, UnicodeDecodeError) as exc:
+        # UnicodeDecodeError is not a JSONDecodeError; without it, non-UTF-8
+        # bytes escape main() as a raw traceback.
         raise InputError(f"input is not valid JSON: {exc}") from exc
 
     blocks = _unwrap(value)
@@ -2535,6 +2537,7 @@ import argparse
 import os
 import re
 import sys
+import urllib.parse
 from pathlib import Path
 
 from . import document, limits, media, planner
@@ -2567,9 +2570,14 @@ def parse_args(argv):
 
 
 def normalize_parent_id(value: str) -> str:
+    # Scan the PATH only. A database URL carries its view id in ?v=... and that
+    # sits later in the string, so scanning the whole argument would return the
+    # view and address the wrong object. urlsplit leaves a bare id or dashed
+    # uuid entirely in `path`, so those still work.
+    path = urllib.parse.urlsplit(value).path or value
     match = None
-    for match in UUID_RE.finditer(value):
-        pass  # the id is the last uuid-shaped run, so a slug cannot shadow it
+    for match in UUID_RE.finditer(path):
+        pass  # the id is the last uuid-shaped run in the path
     if match is None:
         raise InputError(
             f"could not find a Notion id in {value!r}; pass a 32-character id, "
@@ -2643,7 +2651,13 @@ def main(argv=None, *, client_factory=None, out=None, err=None):
         if not token:
             raise InputError("no token: set NOTION_TOKEN or pass --token")
 
-        raw = Path(args.input).read_bytes() if args.input else sys.stdin.buffer.read()
+        if args.input:
+            try:
+                raw = Path(args.input).read_bytes()
+            except OSError as exc:
+                raise InputError(f"cannot read {args.input}: {exc.strerror}") from exc
+        else:
+            raw = sys.stdin.buffer.read()
         blocks = document.parse(raw)
         title, blocks = extract_title(blocks, args.title)
 
@@ -2744,7 +2758,7 @@ is the same property §5.1 exists to guarantee.
 ```
 
 Run: `cd notion-upload && uv run pytest tests/test_cli.py -v`
-Expected: PASS, 16 tests.
+Expected: PASS, 21 tests.
 
 - [ ] **Step 5: Run the whole suite**
 
