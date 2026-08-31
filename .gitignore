@@ -7,3 +7,10 @@
 notion-upload/.venv/
 notion-upload/.pytest_cache/
 __pycache__/
+
+# Inherited from the monorepo's root .gitignore before this project was split
+# out; kept here so the standalone repo is self-sufficient.
+.superpowers/
+
+# Hypothesis' example database, written by the uploader's property tests.
+notion-upload/.hypothesis/
