@@ -148,3 +148,27 @@ def test_an_empty_document_plans_a_single_empty_request():
     assert len(plan) == 1
     assert plan[0].blocks == []
     assert plan[0].parent is None
+
+
+def test_source_path_resolves_to_the_right_block_after_partial_inlining():
+    """A deferred wave starts partway through its parent's children, so
+    its paths must carry that offset. Without it they resolve to the
+    blocks that were inlined instead."""
+    tree = [para("p", children=[para("a"), para("b"),
+                                para("c", children=[para("g")]), para("d")])]
+    plan = planner.plan(tree, limits.DEFAULT)
+
+    def resolve(path):
+        node, cursor = None, tree
+        for i in path:
+            node = cursor[i]
+            cursor = document.children_of(node)
+        return text_of(node)
+
+    for request in plan:
+        assert len(request.source_path) == len(request.blocks)
+        for block, path in zip(request.blocks, request.source_path):
+            assert resolve(path) == text_of(block), (
+                f"source_path {path} resolves to {resolve(path)!r}, "
+                f"but the request carries {text_of(block)!r}"
+            )

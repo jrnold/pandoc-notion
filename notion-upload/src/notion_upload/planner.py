@@ -31,8 +31,9 @@ class Request:
     source_path: list[tuple[int, ...]] = field(default_factory=list)
 
 
-def _prepare(block: dict, lim: Limits) -> tuple[dict, list[dict]]:
-    """Return the payload for one block and the children it must defer.
+def _prepare(block: dict, lim: Limits) -> tuple[dict, list[dict], int]:
+    """Return the payload for one block, the children it must defer, and how
+    many children were inlined.
 
     Inline the longest LEADING run of children that are leaves and fit;
     everything from the first non-leaf or first over-budget child onward is
@@ -41,13 +42,16 @@ def _prepare(block: dict, lim: Limits) -> tuple[dict, list[dict]]:
     inlined - taking a prefix is what keeps document order without needing
     the `position` parameter.
 
+    The inlined count lets the caller offset the deferred wave's source
+    paths, since that wave starts partway through the original children.
+
     Note the `lim.children` check: the 100-children cap applies to every
     children array, not only the request's top-level one, so a block with 120
     leaf children cannot carry them all however much byte budget is spare.
     """
     kids = document.children_of(block)
     if not kids:
-        return document.without_children(block), []
+        return document.without_children(block), [], 0
 
     taken: list[dict] = []
     for kid in kids:
@@ -64,18 +68,18 @@ def _prepare(block: dict, lim: Limits) -> tuple[dict, list[dict]]:
 
     deferred = list(kids[len(taken):])
     if not taken:
-        return document.without_children(block), deferred
-    return document.with_children(block, taken), deferred
+        return document.without_children(block), deferred, 0
+    return document.with_children(block, taken), deferred, len(taken)
 
 
 def plan(blocks: list[dict], lim: Limits) -> list[Request]:
     requests: list[Request] = []
-    # (parent_ref, blocks, source_path) waves still to emit.
-    waves: list[tuple] = [(None, document.deep_copy(blocks), ())]
+    # (parent_ref, blocks, source_path, base) waves still to emit.
+    waves: list[tuple] = [(None, document.deep_copy(blocks), (), 0)]
 
     while waves:
-        parent, children, path = waves.pop(0)
-        deferred = _pack(parent, children, lim, path, requests)
+        parent, children, path, base = waves.pop(0)
+        deferred = _pack(parent, children, lim, path, requests, base)
         # Depth-first: waves just queued go to the front, in order, so a
         # block's children are emitted before its parent's later siblings.
         waves[0:0] = deferred
@@ -83,23 +87,23 @@ def plan(blocks: list[dict], lim: Limits) -> list[Request]:
     return requests
 
 
-def _pack(parent, blocks, lim, path, requests) -> list[tuple]:
+def _pack(parent, blocks, lim, path, requests, base=0) -> list[tuple]:
     """Emit requests appending `blocks` to `parent`; return deferred waves."""
     deferred_waves: list[tuple] = []
     current: list[dict] = []
     current_paths: list[tuple[int, ...]] = []
-    deferrals: list[tuple[int, list[dict], tuple[int, ...]]] = []
+    deferrals: list[tuple[int, list[dict], tuple[int, ...], int]] = []
 
     def flush():
         index = len(requests)
         requests.append(Request(parent, list(current), list(current_paths)))
-        for position, kids, kid_path in deferrals:
-            deferred_waves.append((Ref(index, position), kids, kid_path))
+        for position, kids, kid_path, inlined in deferrals:
+            deferred_waves.append((Ref(index, position), kids, kid_path, inlined))
         deferrals.clear()
 
     for offset, block in enumerate(blocks):
-        payload, deferred = _prepare(block, lim)
-        block_path = path + (offset,)
+        payload, deferred, inlined = _prepare(block, lim)
+        block_path = path + (base + offset,)
 
         over_children = len(current) >= lim.children
         over_elements = (
@@ -115,7 +119,7 @@ def _pack(parent, blocks, lim, path, requests) -> list[tuple]:
         current.append(payload)
         current_paths.append(block_path)
         if deferred:
-            deferrals.append((len(current) - 1, deferred, block_path))
+            deferrals.append((len(current) - 1, deferred, block_path, inlined))
 
     # Always flush, even when empty: an empty document still creates a page.
     flush()
