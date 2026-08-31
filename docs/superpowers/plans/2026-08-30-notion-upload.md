@@ -1968,6 +1968,26 @@ def test_data_uris_are_local_because_we_must_upload_the_bytes():
     assert media.is_local("data:image/png;base64,iVBOR")
 
 
+def test_windows_drive_letters_are_local_not_remote():
+    """urlparse reads "C:/img.png" as scheme "c". Treating that as a remote
+    URL makes discover skip the block silently."""
+    assert media.is_local("C:/img.png")
+    assert media.is_local(r"C:\img.png")
+    assert media.is_local("D:/nested/img.png")
+    assert media.is_local(r"\\server\share\img.png"), "UNC paths too"
+    assert not media.is_local("https://example.com/i.png")
+    assert not media.is_local("http://example.com/i.png")
+
+
+def test_a_windows_path_reaches_the_aggregated_error_rather_than_being_skipped(tmp_path):
+    """Being unresolvable is fine; being silently dropped is not."""
+    refs = media.discover([image("C:/nope/img.png")])
+    assert refs, "the block must be discovered, not skipped"
+    with pytest.raises(errors.MediaError) as exc:
+        media.resolve(refs, tmp_path)
+    assert "--extract-media" in str(exc.value)
+
+
 def test_discover_finds_media_across_every_block_type():
     blocks = [image("a.png"), {"object": "block", "type": "pdf",
                                "pdf": {"type": "external",
@@ -2103,6 +2123,13 @@ def is_local(url: str) -> bool:
     if url.startswith("data:"):
         return True
     scheme = urllib.parse.urlparse(url).scheme
+    # A one-character "scheme" is a Windows drive letter: urlparse reads
+    # C:/img.png as scheme "c". No registered URL scheme is one character, so
+    # this cannot swallow a real remote URL. Without it, discover() skips the
+    # block silently and the user gets a Notion API rejection instead of this
+    # tool's own --extract-media diagnostic.
+    if len(scheme) == 1:
+        return True
     return scheme in ("", "file")
 
 
@@ -2221,7 +2248,7 @@ def rewrite(resolved: dict, ids_by_hash: dict[str, str]) -> None:
 - [ ] **Step 4: Run test to verify it passes**
 
 Run: `cd notion-upload && uv run pytest tests/test_media.py -v`
-Expected: PASS, 13 tests.
+Expected: PASS, 15 tests.
 
 - [ ] **Step 5: Commit**
 
