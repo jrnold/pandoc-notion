@@ -27,11 +27,12 @@ Set `NOTION_TOKEN`, and share the parent page with your integration.
 |---|---|
 | `INPUT` | block JSON file; defaults to stdin |
 | `--parent ID` | parent page, database or data source; an id or a Notion URL |
-| `--title TEXT` | page title; defaults to the leading `heading_1`, which is then removed |
+| `--title TEXT` | page title; defaults to a leading childless `heading_1`, which is then removed |
 | `--base-dir DIR` | resolve relative media paths against this (default: the input's directory, or cwd) |
 | `--dry-run` | run pre-flight, print the request plan, create nothing |
 | `--token` | overrides `NOTION_TOKEN` |
-| `-v` / `-q` | warning verbosity |
+| `-v` / `--verbose` | trace each request to stderr as it is sent |
+| `-q` / `--quiet` | suppress warnings and progress |
 
 The created page URL goes to stdout alone; warnings and errors go to stderr.
 

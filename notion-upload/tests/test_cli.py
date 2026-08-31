@@ -135,10 +135,9 @@ def test_normalize_parent_reads_the_id_from_the_path_not_the_query(url, expected
 
 def test_upload_creates_the_page_empty_and_appends_every_wave():
     client = StubClient()
-    out, err = io.StringIO(), io.StringIO()
     url = cli.upload(
         [para("a"), para("b")], client=client, parent={"page_id": "p"},
-        title="T", base_dir=None, lim=limits.DEFAULT, out=out, err=err,
+        title="T", lim=limits.DEFAULT,
     )
     assert url == "https://notion.so/page-1"
     assert client.page["children"] == [], (
@@ -156,8 +155,7 @@ def test_an_empty_body_creates_the_page_and_appends_nothing():
     no blocks."""
     client = StubClient()
     url = cli.upload(
-        [], client=client, parent={"page_id": "p"}, title="T",
-        base_dir=None, lim=limits.DEFAULT, out=io.StringIO(), err=io.StringIO(),
+        [], client=client, parent={"page_id": "p"}, title="T", lim=limits.DEFAULT,
     )
     assert url == "https://notion.so/page-1"
     assert client.appends == [], "an empty children array is never sent"
@@ -169,8 +167,7 @@ def test_upload_recurses_for_deep_documents_resolving_ids_from_results():
     # subtree become a second wave addressed by the id `a` came back with.
     tree = [para("a", children=[para("b", children=[para("c", children=[para("d")])])])]
     cli.upload(tree, client=client, parent={"page_id": "p"}, title="T",
-               base_dir=None, lim=limits.DEFAULT, out=io.StringIO(),
-               err=io.StringIO())
+               lim=limits.DEFAULT)
     assert len(client.appends) == 2, "one wave for `a`, one for its children"
     assert client.appends[0][0] == "page-1"
     # The second wave must target the id `a` came back with, not the page.
@@ -182,8 +179,7 @@ def test_a_failure_after_creation_reports_the_url_and_the_block():
     tree = [para("a", children=[para("b", children=[para("c")])])]
     with pytest.raises(errors.PartialUploadError) as exc:
         cli.upload(tree, client=client, parent={"page_id": "p"}, title="T",
-                   base_dir=None, lim=limits.DEFAULT, out=io.StringIO(),
-                   err=io.StringIO())
+                   lim=limits.DEFAULT)
     assert exc.value.page_url == "https://notion.so/page-1"
     assert exc.value.exit_code == 6
 
@@ -270,6 +266,41 @@ def test_dry_run_creates_nothing_and_prints_the_plan(tmp_path):
     assert code == 0
     assert not hasattr(client, "page"), "dry-run must not create a page"
     assert "plan:" in out.getvalue()
+    assert "POST" not in out.getvalue(), (
+        "the page is created empty (spec 5.4), so no wave in the plan is a "
+        "POST /v1/pages - labelling the first one that way misreports it"
+    )
+    assert "PATCH  <page>/children" in out.getvalue()
+
+
+def test_verbose_traces_each_request_to_stderr(tmp_path):
+    doc = tmp_path / "doc.json"
+    doc.write_text(json.dumps([heading("T"), para("body")]))
+    out, err = io.StringIO(), io.StringIO()
+    code = cli.main(
+        [str(doc), "--parent", "24f1b2c3d4e5f6a7b8c9d0e1f2a3b4c5",
+         "--token", "x", "--verbose"],
+        client_factory=lambda token: StubClient(), out=out, err=err,
+    )
+    assert code == 0
+    trace = err.getvalue()
+    assert "created page" in trace
+    assert "request 1/1: appended 1 blocks to page-1" in trace
+    assert out.getvalue().strip() == "https://notion.so/page-1", (
+        "progress goes to stderr; stdout stays the URL alone"
+    )
+
+
+def test_quiet_suppresses_the_verbose_trace(tmp_path):
+    doc = tmp_path / "doc.json"
+    doc.write_text(json.dumps([heading("T"), para("body")]))
+    out, err = io.StringIO(), io.StringIO()
+    cli.main(
+        [str(doc), "--parent", "24f1b2c3d4e5f6a7b8c9d0e1f2a3b4c5",
+         "--token", "x", "--verbose", "--quiet"],
+        client_factory=lambda token: StubClient(), out=out, err=err,
+    )
+    assert err.getvalue() == ""
 
 
 def test_missing_token_is_a_clear_error(tmp_path, monkeypatch):

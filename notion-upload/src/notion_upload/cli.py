@@ -30,14 +30,18 @@ def parse_args(argv):
                         help="block JSON file (default: stdin)")
     parser.add_argument("--parent", required=True,
                         help="parent page/database/data-source id, or a Notion URL")
-    parser.add_argument("--title", help="page title (default: the leading heading_1)")
+    parser.add_argument("--title",
+                        help="page title (default: a leading childless heading_1)")
     parser.add_argument("--base-dir", type=Path,
-                        help="resolve relative media paths against this (default: cwd)")
+                        help="resolve relative media paths against this "
+                             "(default: the input file's directory, or cwd for stdin)")
     parser.add_argument("--token", help="Notion token (default: $NOTION_TOKEN)")
     parser.add_argument("--dry-run", action="store_true",
                         help="run pre-flight and print the plan; create nothing")
-    parser.add_argument("-v", "--verbose", action="store_true")
-    parser.add_argument("-q", "--quiet", action="store_true")
+    parser.add_argument("-v", "--verbose", action="store_true",
+                        help="trace each request to stderr as it is sent")
+    parser.add_argument("-q", "--quiet", action="store_true",
+                        help="suppress warnings and progress")
     return parser.parse_args(argv)
 
 
@@ -86,7 +90,7 @@ def extract_title(blocks, explicit):
     )
 
 
-def upload(blocks, *, client, parent, title, base_dir, lim, out, err):
+def upload(blocks, *, client, parent, title, lim, progress=None):
     """Create the page, then append every wave through one code path.
 
     The page is created EMPTY even though POST /v1/pages accepts up to 100
@@ -95,11 +99,17 @@ def upload(blocks, *, client, parent, title, base_dir, lim, out, err):
     any document deeper than two levels could not be finished. Paying one
     extra request buys a single uniform path in which every id arrives in a
     `results` array. See spec 5.4.
+
+    `progress`, when given, is called with one line per request. It is a
+    callback rather than a stream so that this function stays free of any
+    decision about where output goes or whether the user asked for it.
     """
     plan = planner.plan(blocks, lim)
     page = client.create_page(parent, title, [])
     page_id = page["id"]
     page_url = page.get("url") or f"https://notion.so/{page_id.replace('-', '')}"
+    if progress:
+        progress(f"created page {page_url}")
 
     created: dict[planner.Ref, str] = {}
 
@@ -118,6 +128,11 @@ def upload(blocks, *, client, parent, title, base_dir, lim, out, err):
                 page_url=page_url, block_index=path[0], depth=len(path),
                 completed=position, total=len(plan),
             ) from exc
+        if progress:
+            progress(
+                f"request {position + 1}/{len(plan)}: appended "
+                f"{len(request.blocks)} blocks to {parent_id}"
+            )
         for index, block in enumerate(results):
             created[planner.Ref(position, index)] = block["id"]
 
@@ -175,7 +190,10 @@ def main(argv=None, *, client_factory=None, out=None, err=None):
                 file=out,
             )
             for index, request in enumerate(plan):
-                target = "POST   /v1/pages" if request.parent is None else (
+                # Every wave is an append, including the first: the page
+                # is created empty (spec 5.4), so nothing rides along with the
+                # POST and no request here is one.
+                target = "PATCH  <page>/children" if request.parent is None else (
                     f"PATCH  <request {request.parent.request}"
                     f"#{request.parent.index}>/children"
                 )
@@ -191,7 +209,9 @@ def main(argv=None, *, client_factory=None, out=None, err=None):
 
         url = upload(
             blocks, client=client, parent=parent, title=title,
-            base_dir=base_dir, lim=limits.DEFAULT, out=out, err=err,
+            lim=limits.DEFAULT,
+            progress=(lambda line: print(line, file=err))
+            if args.verbose and not args.quiet else None,
         )
         print(url, file=out)
         return 0
