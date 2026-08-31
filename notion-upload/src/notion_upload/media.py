@@ -34,6 +34,11 @@ def is_local(url: str) -> bool:
     if url.startswith("data:"):
         return True
     scheme = urllib.parse.urlparse(url).scheme
+    # A one-character "scheme" is a Windows drive letter: urlparse reads
+    # C:/img.png as scheme "c". No registered URL scheme is one character,
+    # so this cannot swallow a real remote URL.
+    if len(scheme) == 1:
+        return True
     return scheme in ("", "file")
 
 
