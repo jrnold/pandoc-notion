@@ -209,9 +209,18 @@ class LimitError(NotionUploadError):
 
 
 class APIError(NotionUploadError):
-    """Notion rejected a request, or was unreachable."""
+    """Notion rejected a request, or was unreachable.
+
+    `status` is the HTTP status when there was a response, and None when the
+    request never completed (a transport error). retrieve_parent depends on
+    this to tell a genuine 404 from a bad token.
+    """
 
     exit_code = 5
+
+    def __init__(self, message, *, status=None):
+        super().__init__(message)
+        self.status = status
 
 
 class PartialUploadError(NotionUploadError):
@@ -1653,6 +1662,35 @@ def test_retrieve_parent_raises_when_nothing_matches():
     assert "abc" in str(exc.value)
 
 
+def test_a_bad_token_is_not_disguised_as_an_unshared_parent():
+    """A 401 must surface as itself. Reporting it as 'not shared with your
+    integration' sends the user to fix the wrong thing."""
+    def handler(request):
+        return httpx.Response(401, json={"code": "unauthorized",
+                                         "message": "API token is invalid."})
+
+    c, _ = make(handler)
+    with pytest.raises(errors.APIError) as exc:
+        c.retrieve_parent("24f1b2c3-d4e5-f6a7-b8c9-d0e1f2a3b4c5")
+    assert "API token is invalid." in str(exc.value)
+    assert "shared with your integration" not in str(exc.value)
+    assert exc.value.status == 401
+
+
+def test_a_transport_failure_becomes_an_api_error_not_a_raw_httpx_error():
+    """cli.main handles NotionUploadError only, so a dropped connection must
+    not escape as httpx.ConnectError."""
+    def handler(request):
+        raise httpx.ConnectError("connection refused", request=request)
+
+    c, slept = make(handler, max_retries=2)
+    with pytest.raises(errors.APIError) as exc:
+        c.append_children("blk", [])
+    assert "could not reach Notion" in str(exc.value)
+    assert exc.value.status is None
+    assert len(slept) >= 2, "a transport error is retryable"
+
+
 def test_file_upload_send_posts_multipart_with_a_file_field():
     captured = {}
 
@@ -1732,11 +1770,19 @@ class NotionClient:
     def _request(self, method, url, **kwargs) -> httpx.Response:
         for attempt in range(self._max_retries + 1):
             self._throttle()
-            response = self._http.request(method, url, **kwargs)
+            try:
+                response = self._http.request(method, url, **kwargs)
+            except httpx.RequestError as exc:
+                # Never reached the server: retryable, and it must not escape
+                # as a bare httpx error - cli.main handles NotionUploadError.
+                if attempt == self._max_retries:
+                    raise APIError(f"could not reach Notion: {exc}") from exc
+                self._sleep(min(2**attempt, 30) + random.random())
+                continue
             if response.status_code < 400:
                 return response
             if response.status_code not in RETRYABLE_STATUS or attempt == self._max_retries:
-                raise APIError(self._describe(response))
+                raise APIError(self._describe(response), status=response.status_code)
             self._sleep(self._retry_delay(response, attempt))
         raise AssertionError("unreachable")
 
@@ -1792,8 +1838,10 @@ class NotionClient:
         for path, key in probes:
             try:
                 self._request("GET", path)
-            except APIError:
-                continue
+            except APIError as exc:
+                if exc.status == 404:
+                    continue   # genuinely not this kind of object; try the next
+                raise          # 401, 403, 400, transport failure: a real error
             return {key: object_id}
         raise APIError(
             f"parent {object_id} is not a page, data source or database "
@@ -1832,7 +1880,7 @@ class NotionClient:
 - [ ] **Step 4: Run test to verify it passes**
 
 Run: `cd notion-upload && uv run pytest tests/test_client.py -v`
-Expected: PASS, 10 tests.
+Expected: PASS, 12 tests.
 
 - [ ] **Step 5: Commit**
 
