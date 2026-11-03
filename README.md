@@ -1,5 +1,7 @@
 # Pandoc Notion Filters
 
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+
 Pandoc custom readers and writers for the two formats Notion's APIs speak:
 [Notion Flavored Markdown][nfm] (NFM), the enhanced markdown dialect of the
 markdown endpoints, and Notion's block object JSON. Both target the same pandoc
@@ -229,3 +231,7 @@ It depends on nothing from the Lua tree, and the Lua tree depends on nothing
 from it; they meet at the JSON. See `notion-upload/README.md`.
 
 [nfm]: https://developers.notion.com/guides/data-apis/enhanced-markdown
+
+## License
+
+[MIT](LICENSE)
