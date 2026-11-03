@@ -1,0 +1,54 @@
+# Lua suite (pandoc only) and the uploader's Python suite.
+name: test
+
+on:
+  push:
+  pull_request:
+
+permissions: {}
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  lua:
+    name: lua
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    env:
+      PANDOC_VERSION: "3.13"
+      PANDOC_SHA256: 7e3736f255090296ca5d1a14291a76b9b3c43cd385011b1621a4d0c16091a70f
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Install pandoc
+        run: |
+          deb="pandoc-${PANDOC_VERSION}-1-amd64.deb"
+          curl -fsSLO "https://github.com/jgm/pandoc/releases/download/${PANDOC_VERSION}/${deb}"
+          echo "${PANDOC_SHA256}  ${deb}" | sha256sum -c -
+          sudo dpkg -i "${deb}"
+      - name: Run tests
+        run: make test
+
+  pytest:
+    name: pytest
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    defaults:
+      run:
+        working-directory: notion-upload
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@07a047e608db84b3d8c06cd9a7c7dcc9c355c18e  # v10.3.2
+        with:
+          enable-cache: false
+      - name: Lint
+        run: uv run --frozen ruff check .
+      - name: Run tests
+        run: uv run --frozen pytest -q
